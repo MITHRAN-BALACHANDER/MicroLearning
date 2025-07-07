@@ -15,8 +15,9 @@ import Test from './pages/Test';
 
 const App = () => {
   return (
+    <>
     <div className="flex h-screen w-full">
-{/*       
+       
       <div className="w-[20%]  text-white">
        <Sidebar/>
       </div>
@@ -34,10 +35,10 @@ const App = () => {
           <Route path='/logs' element={<Logs />} />
           <Route path='/*' element={<Notfound />} />
         </Routes>
-      </div> */}
-      <Test/>
+      </div> 
 
     </div>
+    </>
   );
 };
 
