@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const videoRoutes = require('./routes/videoRoutes');
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/category', categoryRoutes);
+app.use('/api/videos', videoRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

@@ -112,7 +112,7 @@ exports.deleteCategory = async (req, res) => {
     const allCategoryIds = await collectCategoryIds(id);
 
     // Step 2: Delete all videos related to these categories
-    await Video.deleteMany({ category: { $in: allCategoryIds } });
+    await Video.deleteMany({ categoryId: { $in: allCategoryIds } });
 
     // Step 3: Delete all categories
     await Category.deleteMany({ _id: { $in: allCategoryIds } });
