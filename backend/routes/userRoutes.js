@@ -15,7 +15,7 @@ router.get('/', protect, admin, userController.getAllUsers);
 router.get('/:id', protect, userController.getUserById);
 
 // Update a user by ID (protected)
-router.put('/:id', protect, userController.updateUserById);
+router.patch('/:id', protect, userController.updateUserById);
 
 // Delete a user by ID (protected, admin only)
 router.delete('/:id', protect, admin, userController.deleteUserById);
