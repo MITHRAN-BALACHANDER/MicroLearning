@@ -11,5 +11,8 @@
     "mongoose": "^8.16.1",
     "morgan": "^1.10.0",
     "nodemon": "^3.1.10"
+  },
+  "dependencies": {
+    "multer": "^2.0.1"
   }
 }

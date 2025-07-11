@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
+const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -24,6 +25,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/category', categoryRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/ratings', ratingRoutes);
+
+app.use('/api/videos/uploads', express.static(path.join(__dirname, 'uploads')));
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

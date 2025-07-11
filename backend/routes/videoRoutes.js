@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const videoController = require('../controllers/videoController');
 const { protect, admin } = require('../middleware/authMiddleware');
+const upload = require('../middleware/upload');
 
 // Get videos by category (protected)
 router.get('/category/:categoryId', protect, videoController.getVideosByCategory);
@@ -13,7 +14,7 @@ router.get('/search', protect, videoController.searchVideos);
 router.get('/', protect, videoController.getAllVideos);
 
 // Create a new video (protected, admin only)
-router.post('/', protect, admin, videoController.createVideo);
+router.post('/', upload.single('video'), protect, admin, videoController.createVideo);
 
 // Update a video by ID (protected, admin only)
 router.patch('/:id', protect, admin, videoController.updateVideo);

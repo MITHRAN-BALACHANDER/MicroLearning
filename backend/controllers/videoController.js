@@ -1,5 +1,7 @@
 const Video = require('../models/Video');
 const Rating = require('../models/Rating');
+const fs = require('fs');
+const path = require('path');
 
 exports.getVideosByCategory = async (req, res) => {
   try {
@@ -31,7 +33,8 @@ exports.getAllVideos = async (req, res) => {
 
 exports.createVideo = async (req, res) => {
   try {
-    const { title, description, videoUrl, thumbnailUrl, categoryId } = req.body;
+    const { title, description, thumbnailUrl, categoryId } = req.body;
+    const videoUrl = `/uploads/${req.file.filename}`;
 
     const newVideo = new Video({
       title,
@@ -82,8 +85,18 @@ exports.deleteVideo = async (req, res) => {
     if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
+
+    // Delete video file from uploads folder
+    if (video.videoUrl) {
+      const filePath = path.join(__dirname, '..', video.videoUrl);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
     res.json({ message: 'Video deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting video', error: error.message });
   }
-}
+};
+

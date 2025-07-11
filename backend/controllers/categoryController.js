@@ -1,6 +1,8 @@
 const Category = require('../models/Category');
 const Video = require('../models/Video');
 const Rating = require('../models/Rating');
+const fs = require('fs');
+const path = require('path');
 
 // Utility function (recursive)
 const getNestedCategories = async (parentId = null) => {
@@ -112,12 +114,25 @@ exports.deleteCategory = async (req, res) => {
     // Step 1: Collect all category IDs to delete
     const allCategoryIds = await collectCategoryIds(id);
 
-    // Step 2: Delete all videos related to these categories
-    await Video.deleteMany({ categoryId: { $in: allCategoryIds } });
-    // Also delete ratings associated with these videos
-    await Rating.deleteMany({ videoId: { $in: allCategoryIds } });
+    // Step 2: Get all videos related to these categories
+    const videosToDelete = await Video.find({ categoryId: { $in: allCategoryIds } });
 
-    // Step 3: Delete all categories
+    // Step 3: Delete video files from disk
+    for (const video of videosToDelete) {
+      if (video.videoUrl) {
+        const filePath = path.join(__dirname, '..', video.videoUrl);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+    }
+
+    // Step 4: Delete videos and their ratings
+    const videoIds = videosToDelete.map(video => video._id);
+    await Video.deleteMany({ _id: { $in: videoIds } });
+    await Rating.deleteMany({ videoId: { $in: videoIds } });
+
+    // Step 5: Delete all categories
     await Category.deleteMany({ _id: { $in: allCategoryIds } });
 
     res.json({
