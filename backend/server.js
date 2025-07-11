@@ -11,6 +11,7 @@ const userRoutes = require('./routes/userRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const videoRoutes = require('./routes/videoRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
+const feedbackRoutes = require('./routes/feedbackRoute');
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/category', categoryRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/ratings', ratingRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 app.use('/api/videos/uploads', express.static(path.join(__dirname, 'uploads')));
 
