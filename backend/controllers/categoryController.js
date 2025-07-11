@@ -1,5 +1,6 @@
 const Category = require('../models/Category');
 const Video = require('../models/Video');
+const Rating = require('../models/Rating');
 
 // Utility function (recursive)
 const getNestedCategories = async (parentId = null) => {
@@ -113,6 +114,8 @@ exports.deleteCategory = async (req, res) => {
 
     // Step 2: Delete all videos related to these categories
     await Video.deleteMany({ categoryId: { $in: allCategoryIds } });
+    // Also delete ratings associated with these videos
+    await Rating.deleteMany({ videoId: { $in: allCategoryIds } });
 
     // Step 3: Delete all categories
     await Category.deleteMany({ _id: { $in: allCategoryIds } });

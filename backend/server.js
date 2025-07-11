@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const videoRoutes = require('./routes/videoRoutes');
+const ratingRoutes = require('./routes/ratingRoutes');
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/category', categoryRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

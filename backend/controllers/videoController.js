@@ -1,4 +1,5 @@
 const Video = require('../models/Video');
+const Rating = require('../models/Rating');
 
 exports.getVideosByCategory = async (req, res) => {
   try {
@@ -76,6 +77,8 @@ exports.updateVideo = async (req, res) => {
 exports.deleteVideo = async (req, res) => {
   try {
     const video = await Video.findByIdAndDelete(req.params.id);
+    await Rating.deleteMany({ videoId: req.params.id });
+
     if (!video) {
       return res.status(404).json({ message: 'Video not found' });
     }
