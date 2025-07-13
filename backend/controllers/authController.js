@@ -27,8 +27,14 @@ exports.login = async (req, res) => {
 
     const token = generateToken({ id: user._id, role });
 
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Strict',
+      maxAge: 5 * 24 * 60 * 60 * 1000,  // 5 days
+    });
+
     res.json({
-      token,
       user: {
         id: user._id,
         name: user.name,
@@ -39,4 +45,13 @@ exports.login = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
+};
+
+exports.logout = (req, res) => {
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+  });
+  res.json({ message: 'Logged out successfully' });
 };

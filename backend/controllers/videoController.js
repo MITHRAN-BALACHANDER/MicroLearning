@@ -2,10 +2,29 @@ const Video = require('../models/Video');
 const Rating = require('../models/Rating');
 const fs = require('fs');
 const path = require('path');
+const {getWithCache} = require('../redis/cacheHelper');
 
 exports.getVideosByCategory = async (req, res) => {
+  const categoryId = req.params.categoryId;
+  const cacheKey = `videos:category:${categoryId}`;
   try {
-    const videos = await Video.find({ categoryId: req.params.categoryId });
+    const videos = await getWithCache(cacheKey, async () => {
+      // If not cached, fetch from database
+      return await Video.find({ categoryId });
+    });
+    if (!videos || videos.length === 0) {
+      return res.status(404).json({ message: 'No videos found for this category' });
+    }
+    res.json(videos);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching videos by category', error: error.message });
+  }
+}
+
+exports.searchVideos = async (req, res) => {
+  try {
+    const { query } = req.query;
+    const videos = await Video.find({ title: { $regex: query, $options: 'i' } });
     res.json(videos);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching videos by category', error: error.message });
@@ -24,7 +43,13 @@ exports.searchVideos = async (req, res) => {
 
 exports.getAllVideos = async (req, res) => {
   try {
-    const videos = await Video.find();
+    const cacheKey = 'videos:all';
+    const videos = await getWithCache(cacheKey, async () => {
+      return await Video.find();
+    });
+    if (!videos || videos.length === 0) {
+      return res.status(404).json({ message: 'No videos found' });
+    }
     res.json(videos);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching videos', error: error.message });
