@@ -13,17 +13,7 @@ import Sidebar from './components/Sidebar';
 import FeedbackDisplay from './pages/FeedbackDisplay';
 import Settings from './pages/Settings'
 const App = () => {
-<<<<<<< Updated upstream
-  return (
-    <div className="flex h-screen w-full">
-      
-      <div className="w-[20%]  text-white">
-       <Sidebar/>
-      </div>
-=======
   const [isCollapsed, setIsCollapsed] = useState(false);
->>>>>>> Stashed changes
-
   return (
     <div className="flex h-screen overflow-hidden poppins-regular">
       {/* Sidebar */}
@@ -47,15 +37,12 @@ const App = () => {
           <Route path='settings' element={<Settings/>}/>
           <Route path='/*' element={<Notfound />} />
         </Routes>
-<<<<<<< Updated upstream
-      </div>
-      {/* <Test/> */}
+ </main>
 
-=======
-      </main>
->>>>>>> Stashed changes
-    </div>
-  );
-};
+      </div>
+   
+
+      )}
+     
 
 export default App;
