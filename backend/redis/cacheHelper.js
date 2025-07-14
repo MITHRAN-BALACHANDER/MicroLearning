@@ -22,4 +22,12 @@ async function getWithCache(key, fetchFunction, ttlInSeconds = 3600) {
   return data;
 }
 
-module.exports = { getWithCache };
+async function delWithCache(key) {
+  try {
+    await redis.del(key);
+  } catch (err) {
+    console.warn('⚠️ Redis delete failed:', err.message);
+  }
+}
+
+module.exports = { getWithCache, delWithCache };
