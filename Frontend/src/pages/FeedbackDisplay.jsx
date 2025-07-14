@@ -24,7 +24,7 @@ const FeedbackDisplay = () => {
   };
 
   return (
-    <div className="p-8 m-5">
+    <div className="p-6 m-5">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-2">
           <ThumbsUp size={24} className="text-black" />
@@ -34,7 +34,7 @@ const FeedbackDisplay = () => {
       </div>
 
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         {feedbacks.map((fb, index) => (
           <div
             key={index}
@@ -49,7 +49,7 @@ const FeedbackDisplay = () => {
         ))}
       </div>
 
-      {/* Feedback Textarea */}
+      
       <div className="mt-10 border-2 border-gray-200 rounded-xl p-4">
         <textarea
           rows={3}
