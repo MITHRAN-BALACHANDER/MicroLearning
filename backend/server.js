@@ -12,6 +12,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const videoRoutes = require('./routes/videoRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const feedbackRoutes = require('./routes/feedbackRoute');
+const groupRoutes = require('./routes/groupRoutes');
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(cookieParser());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/groups', groupRoutes);
 app.use('/api/category', categoryRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/ratings', ratingRoutes);
