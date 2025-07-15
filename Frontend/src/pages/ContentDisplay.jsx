@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Disclosure } from '@headlessui/react';
 import { ChevronDown } from 'lucide-react';
+import { Upload, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
 const categories = [
   {
     name: 'Finance',
@@ -46,16 +48,51 @@ const categories = [
 ];
 
 export default function ContentDisplay() {
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
 
   const handleCardClick = (video) => {
     navigate(`/content-management/${video.id}`);
   };
-const [selectedVideo, setSelectedVideo] = useState(null);
+
+  const filteredCategories = categories
+  .map((category) => {
+    const lowerSearch = searchTerm.toLowerCase();
+    const categoryMatches = category.name.toLowerCase().includes(lowerSearch);
+
+    const filteredVideos = categoryMatches
+      ? category.videos 
+      : category.videos.filter(video =>
+          video.title.toLowerCase().includes(lowerSearch)
+        );
+
+    return { ...category, videos: filteredVideos };
+  })
+  .filter(category => searchTerm === '' || category.videos.length > 0);
+
 
   return (
     <div className="mx-auto p-4 mt-20 max-w-7xl">
-     
+      <p className="text-4xl font-bold mb-5">Manage content</p>
+      <div className='flex justify-between items-center mb-6'>
+        <button
+          className='bg-gray-50 p-2 flex items-center hover:bg-gray-200 rounded-xl transition-all'
+          onClick={() => navigate('/uploadContent')}
+        >
+          <Upload /> <p className='ml-3'> Upload content</p>
+        </button>
+        <div className='bg-gray-50 p-2 flex items-center rounded-xl hover:bg-gray-200 transition-all'>
+          <Search />
+          <input
+            className='ml-3 bg-transparent focus:outline-none'
+            placeholder="Search for content"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
+
       {selectedVideo && (
         <div className="mb-10">
           <div className="w-full h-[50vh] overflow-hidden rounded-xl shadow">
@@ -93,14 +130,17 @@ const [selectedVideo, setSelectedVideo] = useState(null);
         </div>
       )}
 
-      {/* Categories + Cards */}
-      {categories.map((category, idx) => (
+      {filteredCategories.map((category, idx) => (
         <Disclosure key={idx}>
           {({ open }) => (
             <div className="mb-4">
               <Disclosure.Button className="flex items-center justify-between w-full py-3 text-xl font-semibold focus:outline-none">
                 <span>{category.name}</span>
-                <ChevronDown className={`h-5 w-5 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown
+                  className={`h-5 w-5 transition-transform duration-300 ${
+                    open ? 'rotate-180' : ''
+                  }`}
+                />
               </Disclosure.Button>
               <Disclosure.Panel>
                 {category.videos && category.videos.length > 0 ? (
