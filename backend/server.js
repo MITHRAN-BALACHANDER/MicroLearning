@@ -13,6 +13,7 @@ const videoRoutes = require('./routes/videoRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const feedbackRoutes = require('./routes/feedbackRoute');
 const groupRoutes = require('./routes/groupRoutes');
+const errorMiddleware = require('./middleware/errorMiddleware');
 
 dotenv.config();
 
@@ -22,6 +23,10 @@ app.use(cors());
 app.use(helmet());
 app.use(cookieParser());
 
+// Serve static files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
@@ -30,7 +35,8 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/feedback', feedbackRoutes);
 
-app.use('/api/videos/uploads', express.static(path.join(__dirname, 'uploads')));
+// Error handling middleware (must be after all routes)
+app.use(errorMiddleware);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

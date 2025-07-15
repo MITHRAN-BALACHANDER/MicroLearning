@@ -14,7 +14,15 @@ router.get('/search', protect, videoController.searchVideos);
 router.get('/', protect, videoController.getAllVideos);
 
 // Create a new video (protected, admin only)
-router.post('/', upload.single('video'), protect, admin, videoController.createVideo);
+// Note: Authentication middleware should come before file upload middleware
+router.post('/', protect, admin, (req, res, next) => {
+  upload.single('videoFile')(req, res, (err) => {
+    if (err) {
+      return next(err);
+    }
+    next();
+  });
+}, videoController.createVideo);
 
 // Update a video by ID (protected, admin only)
 router.patch('/:id', protect, admin, videoController.updateVideo);
