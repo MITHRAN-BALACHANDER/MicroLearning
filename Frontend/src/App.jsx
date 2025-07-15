@@ -12,6 +12,7 @@ import Notfound from './pages/Notfound';
 import Sidebar from './components/Sidebar';
 import FeedbackDisplay from './pages/FeedbackDisplay';
 import Settings from './pages/Settings'
+import Test from './pages/Test';
 const App = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   return (
@@ -22,7 +23,7 @@ const App = () => {
       {/* Main Content */}
       <main
         className={`transition-all duration-300 p-4 flex-1 overflow-auto ${
-          isCollapsed ? 'ml-20' : 'ml-64'
+          isCollapsed ? 'ml-0' : 'ml-64'
         }`}
       >
         <Routes>
@@ -37,6 +38,7 @@ const App = () => {
           <Route path='settings' element={<Settings/>}/>
           <Route path='/*' element={<Notfound />} />
         </Routes>
+        <Test/>
  </main>
 
       </div>
