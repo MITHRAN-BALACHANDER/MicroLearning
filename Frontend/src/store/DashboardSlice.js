@@ -48,7 +48,7 @@ export const fetchTestResults = createAsyncThunk(
       { name: 'Sahan', videoName: 'cse', score: 92 },
       { name: 'Kavin', videoName: 'cyber', score: 92 },
       { name: 'Mithran', videoName: 'it', score: 88 },
-      { name: 'Sajit', videoName: 'ds', score: 74 },
+      { name: 'Sajit', videoName: 'ds', score: 84 },
     ];
   }
 );

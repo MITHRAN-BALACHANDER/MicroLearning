@@ -75,9 +75,9 @@ export default function ContentDisplay() {
   return (
     <div className="mx-auto p-4 mt-20 max-w-7xl">
       <p className="text-4xl font-bold mb-5">Manage content</p>
-      <div className='flex justify-between items-center mb-6'>
+      <div className='flex flex-wrap justify-between items-center mb-6'>
         <button
-          className='bg-gray-50 p-2 flex items-center hover:bg-gray-200 rounded-xl transition-all'
+          className='bg-gray-50 p-2 mb-3 flex items-center hover:bg-gray-200 rounded-xl transition-all'
           onClick={() => navigate('/uploadContent')}
         >
           <Upload /> <p className='ml-3'> Upload content</p>

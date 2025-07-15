@@ -36,10 +36,10 @@ export default function Analytics() {
   // API CALL: Fetch top performers list
   // Replace below with: axios.get('/api/analytics/top-performers').then(res => setTopPerformers(res.data))
   setTopPerformers([
-    { name: 'Sahana', rating: '98.5%', tests: 24, improvement: '+12%' },
-    { name: 'Sahana', rating: '96.2%', tests: 22, improvement: '+8%' },
-    { name: 'Sahana', rating: '94.8%', tests: 26, improvement: '+15%' },
-    { name: 'Sahana', rating: '92.3%', tests: 21, improvement: '+6%' }
+    { name: 'Sahana', rating: '98.5%', tests: 24, },
+    { name: 'Sahana', rating: '96.2%', tests: 22,  },
+    { name: 'Sahana', rating: '94.8%', tests: 26,  },
+    { name: 'Sahana', rating: '92.3%', tests: 21, }
   ]);
 
   // API CALL: Fetch pie chart data - course completion progress
@@ -325,7 +325,7 @@ const kpiCards = [
                       <span className="text-lg font-bold text-blue-600">{user.rating}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm text-gray-600">
-                      <span>{user.status}</span>
+                    
                       <div className="flex items-center gap-3">
                         <span>{user.tests} tests</span>
                         <span className="text-green-600 font-medium">{user.improvement}</span>
