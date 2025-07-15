@@ -11,7 +11,6 @@ const Dashboard = () => {
   const [realTimeData, setRealTimeData] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Mock data for demonstration
   const activeUsers = [
     { name: "Yesterday", users: 120 },
     { name: "Today", users: 150 }
@@ -37,9 +36,9 @@ const Dashboard = () => {
   ];
 
   const complaints = [
-    { user: "John Doe", issue: "Video playback issues", time: "2h ago", severity: "high" },
-    { user: "Jane Smith", issue: "Login problems", time: "4h ago", severity: "medium" },
-    { user: "Mike Johnson", issue: "Course content missing", time: "6h ago", severity: "low" }
+    { user: "Sahna", issue: "Video playback issues", time: "2h ago", severity: "high" },
+    { user: "Sahana", issue: "Login problems", time: "4h ago", severity: "medium" },
+    { user: "Sahana", issue: "Course content missing", time: "6h ago", severity: "low" }
   ];
 
   const activityData = [
@@ -93,7 +92,6 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 mt-10 via-white to-blue-50 p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Animated Header */}
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 rounded-3xl blur-xl opacity-20 "></div>
           <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-2xl">
@@ -115,7 +113,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Interactive Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             { icon: Users, label: "Active Users", value: "1,234", change: "+12%", color: "from-blue-500 to-cyan-500" },
@@ -189,7 +186,6 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Performance Trend */}
           <div className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-lg">
@@ -231,7 +227,6 @@ const Dashboard = () => {
 
         </div>
 
-        {/* Interactive Regional Heatmap */}
         <div className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-600 text-white rounded-lg">
@@ -336,7 +331,7 @@ const Dashboard = () => {
               </div>
             </div>
             <button
-              onClick={nav('/uploadContent')}
+              onClick={() => nav('/uploadContent')}
               
               className="w-full py-3 rounded-xl font-medium text-xl border-1 text-black duration-300 shadow-lg hover:shadow-xl"
             >
