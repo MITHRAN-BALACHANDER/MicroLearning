@@ -1,91 +1,34 @@
-import React, { useEffect, useState } from "react";
-import { Download, Users, Play, BookOpen, AlertCircle, TrendingUp, Activity, MapPin, Zap, Eye, Award } from "lucide-react";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, Area, AreaChart, LineChart, Line
-} from "recharts";
-import { useNavigate } from "react-router";
-
+import { useSelector, useDispatch } from "react-redux";
+import { useEffect, useState } from "react";
+import { fetchDashboardData } from "../store/DashboardSlice";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { Download, Users, Play, BookOpen, AlertCircle, TrendingUp, Activity, MapPin, Zap, Eye, Award, Stamp } from "lucide-react";
+import Button from "../components/Button";
 
 const Dashboard = () => {
+  const handleDownload = () => {
+    // Logic to download the report
+    console.log("Download report clicked");
+  };
+  const dispatch = useDispatch();
+  const {
+    activeUsers,
+    engagementStats,
+    videoStats,
+    courseCompletion,
+    regionData,
+    complaints,
+    activityData,
+    performanceData,
+    status
+  } = useSelector((state) => state.dashboard);
+
   const [realTimeData, setRealTimeData] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  const activeUsers = [
-    { name: "Yesterday", users: 120 },
-    { name: "Today", users: 150 }
-  ];
-
-  const engagementStats = [
-    { name: "Videos", value: 45, color: "#FF6B6B" },
-    { name: "Tests", value: 30, color: "#4ECDC4" },
-    { name: "Discussions", value: 15, color: "#45B7D1" },
-    { name: "Downloads", value: 10, color: "#FFA07A" }
-  ];
-
-  const videoStats = { uploaded: 234, toBeVerified: 12 };
-  const courseCompletion = { totalCompleted: 1847, percentage: 78 };
-
-  const regionData = [
-    { name: "Tamil", value: 85, trend: "up", color: "#FF6B6B" },
-    { name: "English", value: 72, trend: "down", color: "#4ECDC4" },
-    { name: "Kannada", value: 94, trend: "up", color: "#45B7D1" },
-    { name: "Hindi", value: 45, trend: "stable", color: "#FFA07A" },
-    { name: "Malayalam", value: 38, trend: "up", color: "#98D8C8" },
-    { name: "Telugu", value: 56, trend: "down", color: "#F7DC6F" }
-  ];
-
-  const complaints = [
-    { user: "Sahna", issue: "Video playback issues", time: "2h ago", severity: "high" },
-    { user: "Sahana", issue: "Login problems", time: "4h ago", severity: "medium" },
-    { user: "Sahana", issue: "Course content missing", time: "6h ago", severity: "low" }
-  ];
-
-  const activityData = [
-    { time: "6AM", users: 23, engagement: 45 },
-    { time: "9AM", users: 89, engagement: 78 },
-    { time: "12PM", users: 156, engagement: 92 },
-    { time: "3PM", users: 134, engagement: 87 },
-    { time: "6PM", users: 98, engagement: 65 },
-    { time: "9PM", users: 67, engagement: 54 }
-  ];
-
-  const performanceData = [
-    { month: "Jan", score: 85 },
-    { month: "Feb", score: 88 },
-    { month: "Mar", score: 92 },
-    { month: "Apr", score: 89 },
-    { month: "May", score: 94 },
-    { month: "Jun", score: 96 }
-  ];
-
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-      setRealTimeData(prev => [
-        ...prev.slice(-6),
-        { time: new Date().toLocaleTimeString(), value: Math.floor(Math.random() * 100) + 50 }
-      ]);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleDownload = () => {
-    alert('Download functionality would be implemented here');
-  };
-
-  const handleUploadNavigation = () => {
-    alert('Navigation to upload content would be implemented here');
-  };
-
-  const getTrendIcon = (trend) => {
-    switch(trend) {
-      case 'up': return <TrendingUp className="w-3 h-3 text-green-500" />;
-      case 'down': return <TrendingUp className="w-3 h-3 text-red-500 rotate-180" />;
-      default: return <div className="w-3 h-3 bg-gray-400 rounded-full" />;
-    }
-  };
-      const nav=useNavigate();
+    dispatch(fetchDashboardData());
+  }, [dispatch]);
 
 
   return (
@@ -245,7 +188,7 @@ const Dashboard = () => {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-900">{region.name}</h3>
                     <div className="flex items-center gap-2">
-                      {getTrendIcon(region.trend)}
+                   <Stamp className="w-4 h-4" style={{color: region.color}} />
                       <span className="text-sm font-bold" style={{color: region.color}}>
                         {region.value}%
                       </span>
@@ -330,13 +273,7 @@ const Dashboard = () => {
                 <div className="text-sm text-gray-600">Pending Review</div>
               </div>
             </div>
-            <button
-              onClick={() => nav('/uploadContent')}
-              
-              className="w-full py-3 rounded-xl font-medium text-xl border-1 text-black duration-300 shadow-lg hover:shadow-xl"
-            >
-              Manage Uploads
-            </button>
+            <Button text="Manage Uploads" color="blue" onClick={() => nav('/uploadContent')} />
           </div>
 
         </div>
@@ -373,9 +310,13 @@ const Dashboard = () => {
                       <p className="text-gray-700 text-sm mb-2">{complaint.issue}</p>
                       <p className="text-xs text-gray-500">{complaint.time}</p>
                     </div>
-                    <button className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700">
-                      Visit
-                    </button>
+                    
+                   <button
+  className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700"
+>
+  Visit
+</button>
+
                   </div>
                 </div>
               ))}

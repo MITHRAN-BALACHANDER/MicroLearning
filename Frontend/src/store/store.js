@@ -1,13 +1,12 @@
-// src/store.js
+// src/store/store.js
 import { configureStore } from '@reduxjs/toolkit';
-import dashboardReducer from './DashboardSlice'
-import analyticsReducer from './AnalyticsSlice'
+import analyticsReducer from './analytics/analyticsSlice';
+import dashboardReducer from  './DashboardSlice.js'
 
 const store = configureStore({
   reducer: {
-    content: dashboardReducer,
     analytics: analyticsReducer,
+    dashboard: dashboardReducer,
   },
 });
-
-export default store;
+export default store

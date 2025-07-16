@@ -1,145 +1,88 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
-//  Placeholder base URL — replace with actual API base when ready
-const API_BASE = 'https://your-backend-api.com';
-
-// Async thunk to fetch all dashboard data (active users, engagement, etc.)
+// Optional: Async Thunks if data is fetched from backend
 export const fetchDashboardData = createAsyncThunk(
-  'dashboard/fetchAll',
+  'dashboard/fetchDashboardData',
   async () => {
-   
-    // const response = await fetch(`${API_BASE}/dashboard-data`);
-    // const data = await response.json();
-    // return data;
+    // const res = await fetch('/api/dashboard');
+    // return await res.json();
 
+    // Placeholder static data for now
     return {
       activeUsers: [
-        { name: "Prev 24hrs", users: 2300 },
-        { name: "8th July", users: 2850 },
-        { name: "7th July", users: 1950 },
+        { name: "Yesterday", users: 120 },
+        { name: "Today", users: 150 },
       ],
       engagementStats: [
-        { name: "Minutes Played", value: 15368 },
-        { name: "Stars", value: 892 },
+        { name: "Videos", value: 45, color: "#FF6B6B" },
+        { name: "Tests", value: 30, color: "#4ECDC4" },
+        { name: "Discussions", value: 15, color: "#45B7D1" },
+        { name: "Downloads", value: 10, color: "#FFA07A" }
       ],
-      videoStats: {
-        uploaded: 120,
-        toBeVerified: 14,
-      },
-      courseCompletion: {
-        totalCompleted: 1024,
-        percentage: 78,
-      }
+      videoStats: { uploaded: 234, toBeVerified: 12 },
+      courseCompletion: { totalCompleted: 1847, percentage: 78 },
+      regionData: [
+        { name: "Tamil", value: 85, trend: "up", color: "#FF6B6B" },
+        { name: "English", value: 72, trend: "down", color: "#4ECDC4" },
+        { name: "Kannada", value: 94, trend: "up", color: "#45B7D1" },
+        { name: "Hindi", value: 45, trend: "stable", color: "#FFA07A" },
+        { name: "Malayalam", value: 38, trend: "up", color: "#98D8C8" },
+        { name: "Telugu", value: 56, trend: "down", color: "#F7DC6F" }
+      ],
+      complaints: [
+        { user: "Sahna", issue: "Video playback issues", time: "2h ago", severity: "high" },
+        { user: "Sahana", issue: "Login problems", time: "4h ago", severity: "medium" },
+        { user: "Sahana", issue: "Course content missing", time: "6h ago", severity: "low" }
+      ],
+      activityData: [
+        { time: "6AM", users: 23, engagement: 45 },
+        { time: "9AM", users: 89, engagement: 78 },
+        { time: "12PM", users: 156, engagement: 92 },
+        { time: "3PM", users: 134, engagement: 87 },
+        { time: "6PM", users: 98, engagement: 65 },
+        { time: "9PM", users: 67, engagement: 54 }
+      ],
+      performanceData: [
+        { month: "Jan", score: 85 },
+        { month: "Feb", score: 88 },
+        { month: "Mar", score: 92 },
+        { month: "Apr", score: 89 },
+        { month: "May", score: 94 },
+        { month: "Jun", score: 96 }
+      ]
     };
   }
 );
 
-// Async thunk to fetch test results
-export const fetchTestResults = createAsyncThunk(
-  'dashboard/fetchTestResults',
-  async () => {
-    // For now, return dummy data directly
-    //  REPLACE with this when backend is ready:
-    // const response = await fetch(`${API_BASE}/test-results`);
-    // const data = await response.json();
-    // return data;
-
-    return [
-      { name: 'Sahan', videoName: 'cse', score: 92 },
-      { name: 'Kavin', videoName: 'cyber', score: 92 },
-      { name: 'Mithran', videoName: 'it', score: 88 },
-      { name: 'Sajit', videoName: 'ds', score: 84 },
-    ];
-  }
-);
-
-//  Initial Redux state
-const initialState = {
-  activeUsers: [],
-  engagementStats: [],
-  testResults: [],
-  videoStats: {
-    uploaded: 0,
-    toBeVerified: 0,
-  },
-  courseCompletion: {
-    totalCompleted: 0,
-    percentage: 0,
-  },
-  loading: false,
-  error: null,
-};
-
 const dashboardSlice = createSlice({
   name: 'dashboard',
-  initialState,
+  initialState: {
+    activeUsers: [],
+    engagementStats: [],
+    videoStats: {},
+    courseCompletion: {},
+    regionData: [],
+    complaints: [],
+    activityData: [],
+    performanceData: [],
+    status: 'idle'
+  },
   reducers: {
-    // Optional manual overrides
-    setVideoStats(state, action) {
-      state.videoStats = action.payload;
-    },
-    setCourseCompletion(state, action) {
-      state.courseCompletion = action.payload;
-    },
+    // You can define update actions here for real-time update if needed
   },
   extraReducers: (builder) => {
     builder
-      //  While loading dashboard data
       .addCase(fetchDashboardData.pending, (state) => {
-        state.loading = true;
+        state.status = 'loading';
       })
-      
-      //  When dashboard data is fetched (dummy or real)
       .addCase(fetchDashboardData.fulfilled, (state, action) => {
-        const { activeUsers, engagementStats, videoStats, courseCompletion } = action.payload;
-        state.activeUsers = activeUsers;
-        state.engagementStats = engagementStats;
-        state.videoStats = videoStats;
-        state.courseCompletion = courseCompletion;
-        state.loading = false;
+        Object.assign(state, action.payload);
+        state.status = 'succeeded';
       })
-      
-      
-      .addCase(fetchDashboardData.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message;
-      })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
-     
-      .addCase(fetchTestResults.fulfilled, (state, action) => {
-        state.testResults = action.payload;
+      .addCase(fetchDashboardData.rejected, (state) => {
+        state.status = 'failed';
       });
   },
 });
 
-export const { setVideoStats, setCourseCompletion } = dashboardSlice.actions;
 export default dashboardSlice.reducer;
