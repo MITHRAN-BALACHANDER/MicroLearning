@@ -20,10 +20,9 @@ import {
 import { Search as SearchIcon, Person as PersonIcon } from '@mui/icons-material';
 
 const mockData = [
-  { name: 'Sahana', role: 'Sales Representative',  department:'finance', empId: 1 },
-  { name: 'Sahana', role: 'Marketing Head',  department:'finance', empId: 2 },
-  { name: 'Sahana', role: 'HR',  department:'finance', empId: 3 },
-  
+  { name: 'Sahana', role: 'Sales Representative', department: 'finance', empId: 1 },
+  { name: 'Sahana', role: 'Marketing Head', department: 'finance', empId: 2 },
+  { name: 'Sahana', role: 'HR', department: 'finance', empId: 3 },
 ];
 
 const summaryCards = [
@@ -37,7 +36,16 @@ const DisplayUsers = () => {
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
 
-  const filteredData = mockData.filter((user) =>
+  const [showForm, setShowForm] = useState(false);
+  const [users, setUsers] = useState(mockData);
+  const [newUser, setNewUser] = useState({
+    name: '',
+    role: '',
+    department: '',
+    empId: '',
+  });
+
+  const filteredData = users.filter((user) =>
     user.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -52,7 +60,6 @@ const DisplayUsers = () => {
         Welcome Admin
       </Typography>
 
-     
       <Grid container spacing={10} mb={3}>
         {summaryCards.map((card, index) => (
           <Grid item xs={12} md={4} key={index}>
@@ -74,7 +81,7 @@ const DisplayUsers = () => {
       <Box display="flex" justifyContent="flex-end" mb={2}>
         <TextField
           size="small"
-          variant="outlined" 
+          variant="outlined"
           placeholder="Search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -84,16 +91,38 @@ const DisplayUsers = () => {
         />
       </Box>
 
-    
+      {showForm && (
+        <Box display="flex" flexDirection="column" gap={2} mb={3} p={2} border="1px solid #ccc" borderRadius={2}>
+          <TextField label="Name" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} />
+          <TextField label="Role" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} />
+          <TextField label="Department" value={newUser.department} onChange={(e) => setNewUser({ ...newUser, department: e.target.value })} />
+          <TextField label="Employee ID" type="number" value={newUser.empId} onChange={(e) => setNewUser({ ...newUser, empId: e.target.value })} />
+          <Box display="flex" gap={2}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                setUsers([...users, { ...newUser, empId: parseInt(newUser.empId) }]);
+                setNewUser({ name: '', role: '', department: '', empId: '' });
+                setShowForm(false);
+              }}
+            >
+              Save User
+            </Button>
+            <Button variant="outlined" color="secondary" onClick={() => setShowForm(false)}>
+              Cancel
+            </Button>
+          </Box>
+        </Box>
+      )}
+
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
             <TableRow>
               <TableCell>Employee</TableCell>
               <TableCell>Designation</TableCell>
-              
               <TableCell>Department</TableCell>
-              
               <TableCell>Employee ID</TableCell>
             </TableRow>
           </TableHead>
@@ -107,8 +136,7 @@ const DisplayUsers = () => {
                   </Box>
                 </TableCell>
                 <TableCell>{user.role}</TableCell>
-                <TableCell>{user.department }</TableCell>
-                {/* <TableCell>{usee</TableCell> */}
+                <TableCell>{user.department}</TableCell>
                 <TableCell>{user.empId}</TableCell>
               </TableRow>
             ))}
@@ -116,7 +144,6 @@ const DisplayUsers = () => {
         </Table>
       </TableContainer>
 
-     
       <Box mt={3} display="flex" justifyContent="space-between" alignItems="center">
         <Pagination
           count={Math.ceil(filteredData.length / rowsPerPage)}
@@ -124,9 +151,8 @@ const DisplayUsers = () => {
           onChange={(e, value) => setPage(value)}
           color="primary"
         />
-
         <Box display="flex" gap={2}>
-          <Button variant="contained" color="primary">
+          <Button variant="contained" color="primary" onClick={() => setShowForm(true)}>
             Add a user
           </Button>
           <Button variant="outlined" color="primary">

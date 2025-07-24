@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, Video, Clock, CheckCircle, XCircle, Play, FileText, Tag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 const UploadContent = () => {
   const [category, setCategory] = useState('');
   const [videoFile, setVideoFile] = useState(null);
@@ -28,6 +29,8 @@ const UploadContent = () => {
       setVideoTitle('');
     }, 2000);
   };
+
+  const nav = useNavigate();
 
   const handleAccept = (id) => {
     setReviewVideos(reviewVideos.map(v => v.id === id ? { ...v, status: 'accepted' } : v));
@@ -62,6 +65,7 @@ const UploadContent = () => {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Video Content Studio</h1>
           <p className="text-gray-600">Upload, review, and manage your video content</p>
+          <button  className =" bg-black/10 hover:bg-black/20 transition-all rounded m-3 p-3" onClick={() => nav("/contentManagement")}>Back to videos</button>
         </div>
 
         {/* Upload Section */}
@@ -70,7 +74,7 @@ const UploadContent = () => {
             <div className="bg-blue-100 p-3 rounded-full mr-4">
               <Upload className="w-6 h-6 text-blue-600" />
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900">Upload New Video</h2>
+            <h2 className="text-2xl font-semibold text-gray-900">Upload New file</h2>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -107,12 +111,12 @@ const UploadContent = () => {
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
                 <Video className="w-4 h-4 mr-2" />
-                Video File
+                 File
               </label>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors duration-200">
                 <input
                   type="file"
-                  accept="video/*"
+                  accept="video/*,image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
                   onChange={(e) => setVideoFile(e.target.files[0])}
                   className="hidden"
                   id="video-upload"
@@ -123,10 +127,10 @@ const UploadContent = () => {
                 >
                   <Upload className="w-12 h-12 text-gray-400 mb-3" />
                   <span className="text-sm text-gray-600">
-                    {videoFile ? videoFile.name : 'Click to upload video file'}
+                    {videoFile ? videoFile.name : 'Click to upload q file'}
                   </span>
                   <span className="text-xs text-gray-400 mt-1">
-                    MP4, MOV, AVI up to 100MB
+
                   </span>
                 </label>
               </div>

@@ -15,17 +15,26 @@ import Settings from './pages/Settings'
 // import Test from './pages/Test';
 const App = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const openClosedSidebar = () => {
+    setIsCollapsed(!isCollapsed);
+    marginLeft: window.innerWidth >= 1024 ? (isCollapsed ? '5rem' : '16rem') : '0'
+  };
   return (
+
     <div className="flex h-screen overflow-hidden poppins-regular">
      
-      <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
+      <Sidebar isCollapsed={isCollapsed} setIsCollapsed={openClosedSidebar} />
 
      
-      <main
-        className={`transition-all duration-300 p-4 flex-1 overflow-auto ${
-          isCollapsed ? 'ml-0' : 'ml-64'
-        }`}
-      >
+  <main 
+  className="transition-all duration-300 p-4 flex-1 overflow-auto ml-0"
+  style={{
+    marginLeft: window.innerWidth >= 1024 ? (isCollapsed ? '5rem' : '16rem') : '0'
+  
+  }}
+>
+
         <Routes>
           <Route path='/' element={<Dashboard />} />
           <Route path='/contentManagement' element={<ContentDisplay />} />

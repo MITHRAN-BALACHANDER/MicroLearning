@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useSelector } from "react-redux";
 import Button from "../components/Button";
-
+import {exportToExcel} from "../utils/excelDownload";
 export default function Analytics() {
   const {
     chartData,
@@ -67,6 +67,9 @@ export default function Analytics() {
       description: "Overall",
     },
   ];
+  const handleDownload = () => {
+   exportToExcel()
+  };
 
   return (
     <div className="min-h-screen mt-10 bg-gray-50 p-4">
@@ -287,9 +290,10 @@ export default function Analytics() {
                 </p>
               </div>
               <Button
-                text="Start Test"
+                onClick={() => handleDownload()}
+                text="Download report"
                 color="green"
-                onClick={() => console.log("Button clicked!")}
+               
               />
             </div>
 

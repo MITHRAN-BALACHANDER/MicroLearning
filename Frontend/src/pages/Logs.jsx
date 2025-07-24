@@ -20,7 +20,7 @@ const Log = () => {
   return (
    
        
-    <Box className="ml-18"
+    <Box 
       sx={{
         height: 400,
         width: '100%',

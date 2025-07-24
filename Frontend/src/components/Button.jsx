@@ -10,27 +10,19 @@ const COLOR_CLASSES = {
   gray: 'bg-gray-400 hover:bg-gray-500 focus:ring-gray-400 text-gray-900',
 };
 
-const Button = ({ text, color = 'blue', onClick }) => {
+const Button = ({ onClick, text, color, Icon = Zap }) => {
   const colorClass = COLOR_CLASSES[color] || COLOR_CLASSES.blue;
 
   return (
-    <div className="flex items-center justify-center p-4">
-      <button
-        onClick={onClick}
-        className={`
-          ${colorClass}
-          inline-flex items-center justify-center
-          px-4 py-2 rounded-xl font-bold
-          shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-offset-1
-          transform active:scale-95
-          transition-all duration-500 ease-in-out
-      
-        `}
-      >
-        <Zap className="w-6 h-6 mr-2" />
-        <p className="text-base">{text}</p>
-      </button>
-    </div>
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center px-4 py-2 rounded-xl font-bold shadow-lg
+                  hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-offset-1
+                  transform active:scale-95 transition-all duration-300 ease-in-out ${colorClass}`}
+    >
+      {Icon && <Icon className="w-5 h-5 mr-2" />}
+      <span className="text-base">{text}</span>
+    </button>
   );
 };
 
