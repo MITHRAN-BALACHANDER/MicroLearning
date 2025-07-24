@@ -47,7 +47,7 @@ const DisplayUsers = () => {
   );
 
   return (
-    <Box p={3}>
+    <Box p={3} className="ml-14">
       <Typography variant="h6" align="right" mb={2}>
         Welcome Admin
       </Typography>

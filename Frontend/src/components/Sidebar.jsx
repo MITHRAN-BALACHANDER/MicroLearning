@@ -12,6 +12,7 @@ import {
   Database,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Chat } from '@mui/icons-material';
 
 const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -24,7 +25,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
     { icon: FileText, label: 'Manage Contents', path: '/contentManagement' },
     { icon: PieChart, label: 'Stats and Report', path: '/analytics' },
     { icon: Users, label: 'Manage Users', path: '/users' },
-    { icon: Settings, label: 'Feedback', path: '/feedbackDisplay' },
+    { icon: Chat, label: 'Feedback', path: '/feedbackDisplay' },
     { icon: Database, label: 'Log', path: '/logs' },
     { icon: Settings, label: 'Settings', path: '/settings'}, // Special handling
   ];
@@ -124,42 +125,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
                       )}
                     </button>
 
-                    {isSettingsOpen && (
-                      <div
-                        className={`ml-8 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow z-50
-                          ${isCollapsed ? 'absolute left-full ml-2 w-48' : ''}`}
-                      >
-                        <ul className="text-sm text-gray-700 py-1">
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => {
-                              console.log('Change Theme');
-                              setIsSettingsOpen(false);
-                            }}
-                          >
-                            Change Theme
-                          </li>
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => {
-                              navigate('/edit-account');
-                              setIsSettingsOpen(false);
-                            }}
-                          >
-                            Edit Account
-                          </li>
-                          <li
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => {
-                              console.log('Logout');
-                              setIsSettingsOpen(false);
-                            }}
-                          >
-                            Logout
-                          </li>
-                        </ul>
-                      </div>
-                    )}
+                  
                   </div>
                 );
               }

@@ -23,9 +23,10 @@ const UserProfileForm = () => {
   };
 
   return (
+    <div className='pl-14'>
     <form
       onSubmit={handleSubmit}
-      className="bg-white p-6 rounded-xl mb-4 mt-30 pt-5 shadow-md w-full max-w-sm"
+      className="bg-white p-6 rounded-xl  mb-4 mt-30 pt-5 shadow-md w-full max-w-sm"
     >
       <div className=" flex justify-center items-center">
         <h2 className="text-sm font-semibold text-gray-700 flex items-center">
@@ -88,6 +89,7 @@ const UserProfileForm = () => {
         You can use a checkbox or switch with Tailwind dark mode
       */}
     </form>
+    </div>
   );
 };
 

@@ -20,11 +20,11 @@ const Log = () => {
   return (
    
        
-    <Box
+    <Box className="ml-18"
       sx={{
         height: 400,
         width: '100%',
-        p: 2,
+       p:6,
         m:6,
         fontFamily: 'Poppins, sans-serif',
       }}
