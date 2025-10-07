@@ -1,57 +1,86 @@
-import { useSelector, useDispatch } from "react-redux";
-import { useEffect, useState } from "react";
-import { fetchDashboardData } from "../store/DashboardSlice";
+import { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
-  useNavigate,
-} from "react-router-dom";
-import {
-  ResponsiveContainer,
-  AreaChart,
   Area,
+  AreaChart,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 import {
-  Download,
-  Users,
-  Play,
-  BookOpen,
-  AlertCircle,
-  TrendingUp,
   Activity,
-  MapPin,
-  Zap,
+  AlertCircle,
+  ArrowUpRight,
+  BookOpen,
+  Download,
   Eye,
-  Award,
-  Stamp,
+  MapPin,
+  Play,
+  TrendingUp,
+  Users,
 } from "lucide-react";
-import Button from "../components/Button";
-import { exportToExcel } from "../utils/excelDownload";
-const Dashboard = () => {
-  const nav=useNavigate();
-  const handleDownload = () => {
-    try {
-      exportToExcel();
-      console.log("Employee test data downloaded successfully");
 
-      // Optional: You can also export filtered data
-      // const highPerformers = employees.filter(emp => emp.totalTests > 15);
-      // exportToExcel(highPerformers);
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
+import { exportToExcel } from "@/utils/excelDownload";
+import { fetchDashboardData } from "@/store/DashboardSlice";
+import { cn } from "@/lib/utils";
 
-      // const specificEmployee = employees.filter(emp => emp.name === 'Sahana');
-      // exportToExcel(specificEmployee);
-    } catch (error) {
-      console.error("Error downloading report:", error);
-      alert("Failed to download employee test report. Please try again.");
-    }
-  };
+const STAT_CONFIG = [
+  {
+    label: "Active Users",
+    icon: Users,
+    change: "+12%",
+    extract: ({ activeUsers }) => activeUsers?.value ?? 0,
+  },
+  {
+    label: "Engagement",
+    icon: Eye,
+    change: "+8%",
+    extract: ({ engagementStats }) => engagementStats?.[0]?.value ?? 0,
+  },
+  {
+    label: "Avg. Course Score",
+    icon: TrendingUp,
+    change: "+5%",
+    extract: ({ performanceData }) => performanceData?.[3]?.score ?? 0,
+  },
+  {
+    label: "Uploads Pending",
+    icon: Play,
+    change: "-3%",
+    extract: ({ videoStats }) => videoStats?.toBeVerified ?? 0,
+  },
+];
+
+export default function Dashboard() {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
+
   const {
     activeUsers,
     engagementStats,
@@ -61,449 +90,377 @@ const Dashboard = () => {
     complaints,
     activityData,
     performanceData,
-    status,
   } = useSelector((state) => state.dashboard);
-
-  const [realTimeData, setRealTimeData] = useState([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     dispatch(fetchDashboardData());
+    // backend: ensure fetchDashboardData triggers GET /analytics/overview with auth headers
   }, [dispatch]);
 
+  const handleDownload = () => {
+    exportToExcel();
+    // backend: replace util with server-side export by calling GET /reports/employee-tests
+  };
+
+  const stats = STAT_CONFIG.map((item) => ({
+    ...item,
+    value: item.extract({
+      activeUsers,
+      engagementStats,
+      videoStats,
+      courseCompletion,
+      regionData,
+      complaints,
+      activityData,
+      performanceData,
+    }),
+  }));
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 mt-10 via-white to-blue-50 p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 rounded-3xl blur-xl opacity-20 "></div>
-          <div className="relative bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-4xl font-bold text-black bg-clip-text ">
-                  Analytics
-                </h1>
-                <p className="text-gray-600 mt-2">
-                  Real-time insights • {currentTime.toLocaleTimeString()}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-full shadow-lg">
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium">Live</span>
-                </div>
-              </div>
-            </div>
-          </div>
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Operations overview
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Monitor live engagement, course progress and recent issues across
+            the fleet.
+          </p>
         </div>
+        <Button variant="secondary" className="gap-2" onClick={handleDownload}>
+          <Download className="h-4 w-4" />
+          Export Summary
+        </Button>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            {
-              icon: Users,
-              label: "Active Users",
-              value: "1,234",
-              change: "+12%",
-              color: "from-blue-500 to-cyan-500",
-            },
-            {
-              icon: Eye,
-              label: "Page Views",
-              value: "45.2K",
-              change: "+8%",
-              color: "from-purple-500 to-pink-500",
-            },
-            {
-              icon: Award,
-              label: "Completion Rate",
-              value: "78%",
-              change: "+5%",
-              color: "from-green-500 to-emerald-500",
-            },
-            {
-              icon: TrendingUp,
-              label: "Engagement",
-              value: "92%",
-              change: "+15%",
-              color: "from-orange-500 to-red-500",
-            },
-          ].map((stat, index) => (
-            <div key={index} className="group relative">
-              <div
-                className="absolute inset-0 bg-gradient-to-r opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-2xl blur-xl"
-                style={{
-                  background: `linear-gradient(135deg, ${
-                    stat.color.split(" ")[1]
-                  }, ${stat.color.split(" ")[3]})`,
-                }}
-              ></div>
-              <div className="relative bg-white rounded-2xl p-6 shadow-xl group-hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div
-                    className={`p-3 bg-gradient-to-br ${stat.color} text-white rounded-xl shadow-lg`}
-                  >
-                    <stat.icon className="w-5 h-5" />
-                  </div>
-                  <span className="text-sm font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                    {stat.change}
-                  </span>
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">
-                  {stat.value}
-                </h3>
-                <p className="text-sm text-gray-600">{stat.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Main Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Enhanced Activity Chart */}
-          <div className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-lg">
-                <Activity className="w-5 h-5" />
-              </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat) => (
+          <Card key={stat.label} className="relative overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Daily Activity
-                </h2>
-                <p className="text-sm text-gray-600">
-                  User engagement patterns
-                </p>
+                <CardDescription>{stat.label}</CardDescription>
+                <CardTitle className="text-3xl font-semibold">
+                  {formatMetric(stat.value)}
+                </CardTitle>
               </div>
+              <Badge variant="outline" className="gap-1 text-xs">
+                <ArrowUpRight className="h-3 w-3" />
+                {stat.change}
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                Updated just now{" "}
+                {/* backend: replace with `lastSynced` timestamp returned by overview endpoint */}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="lg:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Activity className="h-4 w-4" /> Active sessions
+              </CardTitle>
+              <CardDescription>
+                User interactions in the last 24 hours
+              </CardDescription>
             </div>
-            <ResponsiveContainer width="100%" height={280}>
+          </CardHeader>
+          <CardContent className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData}>
                 <defs>
-                  <linearGradient
-                    id="colorActivity"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1} />
+                  <linearGradient id="activity" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0f172a" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#0f172a" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="time"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: "#6B7280" }}
+                  tick={{ fontSize: 12 }}
                 />
                 <YAxis hide />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: "2px solid #111827",
-                    borderRadius: "12px",
-                    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-                  }}
-                />
+                <Tooltip cursor={{ strokeDasharray: "4 4" }} />
                 <Area
                   type="monotone"
                   dataKey="users"
-                  stroke="#3B82F6"
-                  fill="url(#colorActivity)"
-                  strokeWidth={3}
+                  stroke="#0f172a"
+                  fill="url(#activity)"
+                  strokeWidth={2}
                 />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-lg">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Performance Trend
-                </h2>
-                <p className="text-sm text-gray-600">Monthly progression</p>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={280}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4" /> Monthly performance
+            </CardTitle>
+            <CardDescription>
+              Completion score across flagship programs
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={performanceData}>
                 <XAxis
                   dataKey="month"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: "#6B7280" }}
+                  tick={{ fontSize: 12 }}
                 />
                 <YAxis hide />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: "2px solid #111827",
-                    borderRadius: "12px",
-                    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-                  }}
-                />
+                <Tooltip cursor={{ strokeDasharray: "4 4" }} />
                 <Line
                   type="monotone"
                   dataKey="score"
-                  stroke="#10B981"
-                  strokeWidth={4}
-                  dot={{ fill: "#10B981", strokeWidth: 2, r: 6 }}
-                  activeDot={{ r: 8, fill: "#059669" }}
+                  stroke="#2563eb"
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
                 />
               </LineChart>
             </ResponsiveContainer>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-600 text-white rounded-lg">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">
-                Language heat map
-              </h2>
-              <p className="text-sm text-gray-600">
-                Regional engagement overview
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {regionData.map((region, index) => (
-              <div key={region.name} className="group relative">
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-xl blur-lg"
-                  style={{ backgroundColor: region.color }}
-                ></div>
-                <div className="relative bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-gray-900">
-                      {region.name}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <Stamp
-                        className="w-4 h-4"
-                        style={{ color: region.color }}
-                      />
-                      <span
-                        className="text-sm font-bold"
-                        style={{ color: region.color }}
-                      >
-                        {region.value}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{
-                        width: `${region.value}%`,
-                        backgroundColor: region.color,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Enhanced Engagement & Videos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Colorful Engagement Chart */}
-          <div className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-lg">
-                <Eye className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Engagement Mix
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Content interaction breakdown
-                </p>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={280}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Eye className="h-4 w-4" /> Engagement mix
+            </CardTitle>
+            <CardDescription>
+              How learners interact with your content
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={engagementStats}
                   dataKey="value"
                   nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
+                  innerRadius={60}
                   outerRadius={90}
-                  paddingAngle={3}
-                  label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
+                  paddingAngle={4}
                 >
-                  {engagementStats.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
+                  {engagementStats.map((slice, index) => (
+                    <Cell key={slice.name} fill={slice.color} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: "2px solid #111827",
-                    borderRadius: "12px",
-                    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-                  }}
-                />
+                <Tooltip />
               </PieChart>
             </ResponsiveContainer>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Video Management */}
-          <div className="bg-gradient-to-br from-purple-50 via-white to-pink-50 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 text-white rounded-lg">
-                <Play className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Video Library
-                </h2>
-                <p className="text-sm text-gray-600">Content management hub</p>
-              </div>
+        <Card className="bg-gradient-to-br from-primary/5 via-background to-background">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Play className="h-4 w-4" /> Video operations
+              </CardTitle>
+              <CardDescription>Publishing throughput this week</CardDescription>
             </div>
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-blue-600 mb-2">
-                  {videoStats.uploaded}
+            <Badge variant="secondary">+4 new</Badge>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <StatBlock label="Uploaded" value={videoStats.uploaded} />
+              <StatBlock
+                label="Awaiting QA"
+                value={videoStats.toBeVerified}
+                tone="warning"
+              />
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button
+              className="w-full"
+              onClick={() => navigate("/upload-content")}
+            >
+              Manage uploads
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapPin className="h-4 w-4" /> Regional focus
+            </CardTitle>
+            <CardDescription>
+              Adoption by locale and language preference
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            {regionData.map((region) => (
+              <div
+                key={region.name}
+                className="space-y-2 rounded-lg border bg-muted/40 p-3"
+              >
+                <div className="flex items-center justify-between text-sm font-medium">
+                  <span>{region.name}</span>
+                  <Badge variant="outline">{region.value}%</Badge>
                 </div>
-                <div className="text-sm text-gray-600">Total Uploaded</div>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-orange-600 mb-2">
-                  {videoStats.toBeVerified}
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${region.value}%`,
+                      backgroundColor: region.color,
+                    }}
+                  />
                 </div>
-                <div className="text-sm text-gray-600">Pending Review</div>
-              </div>
-            </div>
-           <Button
-           onClick={() => nav("/uploadContent")}
-        text="Manage Uploads"
-        color="blue"
-        
-      />
-          </div>
-        </div>
-
-        {/* Enhanced Complaints & Course Progress */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Complaints with Severity */}
-          <div className="bg-white rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gradient-to-br from-red-500 to-pink-600 text-white rounded-lg">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Recent Issues
-                </h2>
-                <p className="text-sm text-gray-600">User feedback & support</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {complaints.map((complaint, index) => (
-                <div
-                  key={index}
-                  className="group bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all duration-300"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h4 className="font-semibold text-gray-900">
-                          {complaint.user}
-                        </h4>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            complaint.severity === "high"
-                              ? "bg-red-100 text-red-800"
-                              : complaint.severity === "medium"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {complaint.severity}
-                        </span>
-                      </div>
-                      <p className="text-gray-700 text-sm mb-2">
-                        {complaint.issue}
-                      </p>
-                      <p className="text-xs text-gray-500">{complaint.time}</p>
-                    </div>
-
-                    <button className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700">
-                      Visit
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Course Progress */}
-          <div className="bg-gradient-to-br from-green-50 via-white to-emerald-50 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-lg">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Learning Progress
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Course completion tracking
+                <p className="text-xs text-muted-foreground">
+                  {/* backend: replace with locale-specific insight from /analytics/regions */}
+                  Engagement steady week over week
                 </p>
               </div>
-            </div>
+            ))}
+          </CardContent>
+        </Card>
 
-            <div className="text-center mb-6">
-              <div className="relative inline-block">
-                <div className="w-32 h-32 rounded-full border-8 border-gray-200 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-gray-900">
-                      {courseCompletion.percentage}%
-                    </div>
-                    <div className="text-xs text-gray-600">Complete</div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertCircle className="h-4 w-4" /> Escalations
+            </CardTitle>
+            <CardDescription>
+              Most recent feedback items requiring follow-up
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {complaints.slice(0, 4).map((item) => (
+              <div
+                key={`${item.user}-${item.time}`}
+                className="rounded-lg border bg-card/80 p-3"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{item.user}</p>
+                    <p className="text-xs text-muted-foreground">{item.time}</p>
                   </div>
+                  <Badge
+                    variant={getSeverityVariant(item.severity)}
+                    className="capitalize"
+                  >
+                    {item.severity}
+                  </Badge>
                 </div>
-                <div
-                  className="absolute top-0 left-0 w-32 h-32 rounded-full border-8 border-transparent border-t-green-500 transform transition-all duration-1000"
-                  style={{
-                    transform: `rotate(${
-                      (courseCompletion.percentage / 100) * 360
-                    }deg)`,
-                    borderTopColor: "#10B981",
-                  }}
-                ></div>
+                <Separator className="my-2" />
+                <p className="text-sm text-muted-foreground">{item.issue}</p>
+                <Button variant="outline" size="sm" className="mt-3">
+                  View thread
+                  {/* backend: navigate to /feedback/:ticketId once API provides identifiers */}
+                </Button>
               </div>
-            </div>
-
-            <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-green-600 mb-1">
-                {courseCompletion.totalCompleted}
-              </div>
-              <div className="text-sm text-gray-600">Users Completed</div>
-            </div>
-
-            <button
-              onClick={handleDownload}
-              className="w-full mt-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Download Report
-            </button>
-          </div>
-        </div>
+            ))}
+          </CardContent>
+        </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BookOpen className="h-4 w-4" /> Course completion
+            </CardTitle>
+            <CardDescription>
+              Progress across flagship learning paths
+            </CardDescription>
+          </div>
+          <Badge variant="outline">
+            {courseCompletion.percentage}% overall
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Region</TableHead>
+                <TableHead>Completed</TableHead>
+                <TableHead>In progress</TableHead>
+                <TableHead className="text-right">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {regionData.map((region) => (
+                <TableRow key={`${region.name}-completion`}>
+                  <TableCell className="font-medium">{region.name}</TableCell>
+                  <TableCell>
+                    {Math.round(
+                      (region.value / 100) * courseCompletion.totalCompleted
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {Math.round(
+                      (1 - region.value / 100) * courseCompletion.totalCompleted
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Badge variant="secondary">On track</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
-};
+}
 
-export default Dashboard;
+function formatMetric(value) {
+  if (value === undefined || value === null || value === "--") return "--";
+  if (typeof value === "number") {
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+    return value.toLocaleString();
+  }
+  return value;
+}
+
+function StatBlock({ label, value, tone = "default" }) {
+  const palette = {
+    default: "bg-primary/5 text-primary",
+    warning: "bg-amber-100/60 text-amber-700",
+    success: "bg-emerald-100/60 text-emerald-700",
+  };
+  return (
+    <div className="space-y-1 rounded-lg border bg-card p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-2xl font-semibold tracking-tight">{value}</p>
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+          palette[tone]
+        )}
+      >
+        {tone === "warning" ? "Action needed" : "Healthy"}
+      </span>
+    </div>
+  );
+}
+
+function getSeverityVariant(severity) {
+  switch (severity) {
+    case "high":
+      return "destructive";
+    case "medium":
+      return "secondary";
+    default:
+      return "outline";
+  }
+}

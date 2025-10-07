@@ -1,167 +1,309 @@
-import React, { useState } from 'react';
+import { useMemo, useState } from "react";
+import { DownloadCloud, Search, UserPlus, UsersIcon } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  Typography,
-  Grid,
-  TextField,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
+  TableHeader,
   TableRow,
-  Paper,
-  IconButton,
-  Button,
-  Pagination,
-  Box,
-} from '@mui/material';
-import { Search as SearchIcon, Person as PersonIcon } from '@mui/icons-material';
+} from "@/components/ui/table";
 
-const mockData = [
-  { name: 'Sahana', role: 'Sales Representative', department: 'finance', empId: 1 },
-  { name: 'Sahana', role: 'Marketing Head', department: 'finance', empId: 2 },
-  { name: 'Sahana', role: 'HR', department: 'finance', empId: 3 },
+const MOCK_USERS = [
+  {
+    name: "Sahana",
+    role: "Sales Representative",
+    department: "Finance",
+    empId: 1,
+  },
+  { name: "Kavin", role: "Marketing Head", department: "Growth", empId: 2 },
+  { name: "Nandha", role: "HR Partner", department: "People Ops", empId: 3 },
+  // backend: replace mock with GET /users?limit=...
 ];
 
-const summaryCards = [
-  { label: 'Total users', value: '1234', change: '+4% vs last month', color: 'green' },
-  { label: 'Active users', value: '123', change: '-3% vs last month', color: 'red' },
-  { label: 'New users', value: '12', change: '+6% vs last month', color: 'green' },
+const METRICS = [
+  {
+    label: "Total users",
+    value: 1234,
+    delta: "+4% vs last month",
+  },
+  {
+    label: "Active this week",
+    value: 123,
+    delta: "-3% vs last week",
+  },
+  {
+    label: "New invites",
+    value: 12,
+    delta: "+6% vs target",
+  },
 ];
 
-const DisplayUsers = () => {
-  const [search, setSearch] = useState('');
+const PAGE_SIZE = 5;
+
+export default function DisplayUsers() {
+  const [users, setUsers] = useState(MOCK_USERS);
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const rowsPerPage = 5;
-
-  const [showForm, setShowForm] = useState(false);
-  const [users, setUsers] = useState(mockData);
-  const [newUser, setNewUser] = useState({
-    name: '',
-    role: '',
-    department: '',
-    empId: '',
+  const [form, setForm] = useState({
+    name: "",
+    role: "",
+    department: "",
+    empId: "",
   });
 
-  const filteredData = users.filter((user) =>
-    user.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    if (!search) return users;
+    const lower = search.toLowerCase();
+    return users.filter((user) =>
+      [user.name, user.role, user.department].some((field) =>
+        field.toLowerCase().includes(lower)
+      )
+    );
+  }, [search, users]);
 
-  const paginatedData = filteredData.slice(
-    (page - 1) * rowsPerPage,
-    page * rowsPerPage
-  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handleSubmit = () => {
+    if (!form.name || !form.role || !form.department || !form.empId) return;
+    setUsers((prev) => [
+      ...prev,
+      {
+        name: form.name,
+        role: form.role,
+        department: form.department,
+        empId: Number(form.empId),
+      },
+    ]);
+    setForm({ name: "", role: "", department: "", empId: "" });
+    // backend: POST /users with payload { name, role, department, employeeId }
+  };
 
   return (
-    <Box p={3} className="ml-14">
-      <Typography variant="h6" align="right" mb={2}>
-        Welcome Admin
-      </Typography>
+    <section className="space-y-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            People directory
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            View active learners, invite teammates, and manage access.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="outline" className="gap-2">
+            <DownloadCloud className="h-4 w-4" />
+            Export report
+            {/* backend: call GET /users/export to download CSV */}
+          </Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <UserPlus className="h-4 w-4" />
+                Add user
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Invite a teammate</DialogTitle>
+                <DialogDescription>
+                  Capture the essentials and well send them an activation email.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="name">Full name</Label>
+                  <Input
+                    id="name"
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, name: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="role">Role</Label>
+                  <Input
+                    id="role"
+                    value={form.role}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, role: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="department">Department</Label>
+                  <Input
+                    id="department"
+                    value={form.department}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        department: event.target.value,
+                      }))
+                    }
+                    // backend: replace with dropdown fed by GET /departments
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="employeeId">Employee ID</Label>
+                  <Input
+                    id="employeeId"
+                    type="number"
+                    value={form.empId}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        empId: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setForm({ name: "", role: "", department: "", empId: "" })
+                  }
+                >
+                  Reset
+                </Button>
+                <Button onClick={handleSubmit}>Send invite</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </header>
 
-      <Grid container spacing={10} mb={3}>
-        {summaryCards.map((card, index) => (
-          <Grid item xs={12} md={4} key={index}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle2" color="textSecondary">
-                  {card.label}
-                </Typography>
-                <Typography variant="h5">{card.value}</Typography>
-                <Typography variant="caption" color={card.color}>
-                  {card.change}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {METRICS.map((metric) => (
+          <Card key={metric.label} className="border-border/70">
+            <CardHeader className="pb-2">
+              <CardDescription>{metric.label}</CardDescription>
+              <CardTitle className="text-3xl font-semibold">
+                {metric.value}
+              </CardTitle>
+            </CardHeader>
+            <CardFooter className="text-xs text-muted-foreground">
+              {metric.delta}
+            </CardFooter>
+          </Card>
         ))}
-      </Grid>
+      </div>
 
-      <Box display="flex" justifyContent="flex-end" mb={2}>
-        <TextField
-          size="small"
-          variant="outlined"
-          placeholder="Search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
-          }}
-        />
-      </Box>
-
-      {showForm && (
-        <Box display="flex" flexDirection="column" gap={2} mb={3} p={2} border="1px solid #ccc" borderRadius={2}>
-          <TextField label="Name" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} />
-          <TextField label="Role" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} />
-          <TextField label="Department" value={newUser.department} onChange={(e) => setNewUser({ ...newUser, department: e.target.value })} />
-          <TextField label="Employee ID" type="number" value={newUser.empId} onChange={(e) => setNewUser({ ...newUser, empId: e.target.value })} />
-          <Box display="flex" gap={2}>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => {
-                setUsers([...users, { ...newUser, empId: parseInt(newUser.empId) }]);
-                setNewUser({ name: '', role: '', department: '', empId: '' });
-                setShowForm(false);
+      <Card className="border-border/70">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <UsersIcon className="h-4 w-4" />
+            <CardTitle className="text-lg">Directory</CardTitle>
+          </div>
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search people"
+              className="pl-9"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
               }}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="max-h-[420px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead className="text-right">Employee ID</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.length ? (
+                  paginated.map((user) => (
+                    <TableRow key={`${user.empId}-${user.name}`}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.role}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {user.department}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{user.empId}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      No matches yet.{" "}
+                      {/* backend: show skeleton while /users is loading */}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+        <Separator />
+        <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs text-muted-foreground">
+            Showing {(page - 1) * PAGE_SIZE + 1}–
+            {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}{" "}
+            people
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
             >
-              Save User
+              Previous
             </Button>
-            <Button variant="outlined" color="secondary" onClick={() => setShowForm(false)}>
-              Cancel
+            <Badge variant="outline">Page {page}</Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              Next
             </Button>
-          </Box>
-        </Box>
-      )}
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Employee</TableCell>
-              <TableCell>Designation</TableCell>
-              <TableCell>Department</TableCell>
-              <TableCell>Employee ID</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {paginatedData.map((user, idx) => (
-              <TableRow key={idx}>
-                <TableCell>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <PersonIcon fontSize="small" color="disabled" />
-                    {user.name}
-                  </Box>
-                </TableCell>
-                <TableCell>{user.role}</TableCell>
-                <TableCell>{user.department}</TableCell>
-                <TableCell>{user.empId}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Box mt={3} display="flex" justifyContent="space-between" alignItems="center">
-        <Pagination
-          count={Math.ceil(filteredData.length / rowsPerPage)}
-          page={page}
-          onChange={(e, value) => setPage(value)}
-          color="primary"
-        />
-        <Box display="flex" gap={2}>
-          <Button variant="contained" color="primary" onClick={() => setShowForm(true)}>
-            Add a user
-          </Button>
-          <Button variant="outlined" color="primary">
-            Bulk upload
-          </Button>
-        </Box>
-      </Box>
-    </Box>
+          </div>
+        </CardFooter>
+      </Card>
+    </section>
   );
-};
-
-export default DisplayUsers;
+}

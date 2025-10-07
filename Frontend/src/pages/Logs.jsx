@@ -20,7 +20,7 @@ const Log = () => {
   return (
    
        
-    <Box 
+    <Box z
       sx={{
         height: 400,
         width: '100%',

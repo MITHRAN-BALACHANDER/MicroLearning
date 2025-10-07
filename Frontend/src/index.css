@@ -1,110 +1,76 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Port+Lligat+Sans&display=swap');
-@import "tailwindcss";
-.poppins-thin {
-  font-family: "Poppins", sans-serif;
-  font-weight: 100;
-  font-style: normal;
-}
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 
-.poppins-extralight {
-  font-family: "Poppins", sans-serif;
-  font-weight: 200;
-  font-style: normal;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-.poppins-light {
-  font-family: "Poppins", sans-serif;
-  font-weight: 300;
-  font-style: normal;
-}
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
 
-.poppins-regular {
-  font-family: "Poppins", sans-serif;
-  font-weight: 400;
-  font-style: normal;
-}
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
 
-.poppins-medium {
-  font-family: "Poppins", sans-serif;
-  font-weight: 500;
-  font-style: normal;
-}
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
 
-.poppins-semibold {
-  font-family: "Poppins", sans-serif;
-  font-weight: 600;
-  font-style: normal;
-}
+    --primary: 210 15% 18%;
+    --primary-foreground: 0 0% 100%;
 
-.poppins-bold {
-  font-family: "Poppins", sans-serif;
-  font-weight: 700;
-  font-style: normal;
-}
+    --secondary: 210 16% 96%;
+    --secondary-foreground: 210 10% 26%;
 
-.poppins-extrabold {
-  font-family: "Poppins", sans-serif;
-  font-weight: 800;
-  font-style: normal;
-}
+    --muted: 210 16% 93%;
+    --muted-foreground: 215 12% 47%;
 
-.poppins-black {
-  font-family: "Poppins", sans-serif;
-  font-weight: 900;
-  font-style: normal;
-}
+    --accent: 210 16% 90%;
+    --accent-foreground: 217 19% 27%;
 
-.poppins-thin-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 100;
-  font-style: italic;
-}
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-.poppins-extralight-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 200;
-  font-style: italic;
-}
+    --border: 214 14% 89%;
+    --input: 214 14% 89%;
+    --ring: 215 12% 38%;
 
-.poppins-light-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 300;
-  font-style: italic;
-}
+    --radius: 0.75rem;
+  }
 
-.poppins-regular-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 400;
-  font-style: italic;
-}
+  .dark {
+    --background: 215 14% 12%;
+    --foreground: 210 20% 98%;
 
-.poppins-medium-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 500;
-  font-style: italic;
-}
+    --card: 224 14% 18%;
+    --card-foreground: 210 20% 98%;
 
-.poppins-semibold-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 600;
-  font-style: italic;
-}
+    --popover: 222 16% 10%;
+    --popover-foreground: 210 20% 98%;
 
-.poppins-bold-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 700;
-  font-style: italic;
-}
+    --primary: 210 20% 90%;
+    --primary-foreground: 210 30% 8%;
 
-.poppins-extrabold-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 800;
-  font-style: italic;
-}
+    --secondary: 220 14% 18%;
+    --secondary-foreground: 210 20% 96%;
 
-.poppins-black-italic {
-  font-family: "Poppins", sans-serif;
-  font-weight: 900;
-  font-style: italic;
+    --muted: 220 14% 20%;
+    --muted-foreground: 219 14% 70%;
+
+    --accent: 220 14% 25%;
+    --accent-foreground: 210 20% 96%;
+
+    --destructive: 0 63% 49%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 14% 28%;
+    --input: 220 14% 28%;
+    --ring: 212 24% 70%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    font-variation-settings: "opsz" 32;
+  }
 }

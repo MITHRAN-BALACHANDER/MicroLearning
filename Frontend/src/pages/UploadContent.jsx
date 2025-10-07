@@ -1,236 +1,334 @@
-import React, { useState } from 'react';
-import { Upload, Video, Clock, CheckCircle, XCircle, Play, FileText, Tag } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-const UploadContent = () => {
-  const [category, setCategory] = useState('');
-  const [videoFile, setVideoFile] = useState(null);
-  const [videoTitle, setVideoTitle] = useState('');
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  ShieldCheck,
+  UploadCloud,
+  VideoIcon,
+  XCircle,
+  Wand2,
+} from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+
+const STATUS_META = {
+  pending: {
+    label: "Awaiting QA",
+    badge: "secondary",
+    icon: Clock3,
+  },
+  accepted: {
+    label: "Approved",
+    badge: "success",
+    icon: CheckCircle2,
+  },
+  rejected: {
+    label: "Changes requested",
+    badge: "destructive",
+    icon: XCircle,
+  },
+};
+
+const INITIAL_NOTES =
+  "Auto-generated description based on video content analysis. Replace with moderation notes once QA flow is wired.";
+
+export default function UploadContent() {
+  const navigate = useNavigate();
+  const [category, setCategory] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [reviewVideos, setReviewVideos] = useState([]);
+  const [queue, setQueue] = useState([]);
 
   const handleUpload = () => {
-    if (!category || !videoFile || !videoTitle) return;
+    if (!category || !title || !file) return;
 
     setUploading(true);
 
     setTimeout(() => {
-      const newVideo = {
-        id: Date.now(),
-        title: videoTitle,
+      const entry = {
+        id: crypto.randomUUID(),
+        title,
         category,
-        description: 'Auto-generated description based on video content analysis.',
-        status: 'pending',
-        uploadedAt: new Date().toLocaleString(),
+        description: description || INITIAL_NOTES,
+        status: "pending",
+        uploadedAt: new Date().toISOString(),
+        filename: file.name,
       };
-      setReviewVideos([...reviewVideos, newVideo]);
+      setQueue((prev) => [entry, ...prev]);
       setUploading(false);
-      setCategory('');
-      setVideoFile(null);
-      setVideoTitle('');
-    }, 2000);
+      setCategory("");
+      setTitle("");
+      setDescription("");
+      setFile(null);
+    }, 1600);
+
+    // backend: replace timeout with POST /content/upload using multipart/form-data
+    // FormData payload => { video: file, title, category, description }
   };
 
-  const nav = useNavigate();
-
-  const handleAccept = (id) => {
-    setReviewVideos(reviewVideos.map(v => v.id === id ? { ...v, status: 'accepted' } : v));
+  const updateStatus = (id, status) => {
+    setQueue((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status } : item))
+    );
+    // backend: PATCH /content/:id/status with { status }
   };
 
-  const handleReject = (id) => {
-    setReviewVideos(reviewVideos.map(v => v.id === id ? { ...v, status: 'rejected' } : v));
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'accepted': return 'bg-green-100 text-green-800 border-green-200';
-      case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending': return <Clock className="w-4 h-4" />;
-      case 'accepted': return <CheckCircle className="w-4 h-4" />;
-      case 'rejected': return <XCircle className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
-    }
-  };
+  const formatTimestamp = (value) =>
+    new Date(value).toLocaleString(undefined, {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   return (
-    <div className="min-h-screen  bg-gradient-to-br mt-9 from-slate-50 to-blue-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Video Content Studio</h1>
-          <p className="text-gray-600">Upload, review, and manage your video content</p>
-          <button  className =" bg-black/10 hover:bg-black/20 transition-all rounded m-3 p-3" onClick={() => nav("/contentManagement")}>Back to videos</button>
+    <section className="space-y-10">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 px-0"
+            onClick={() => navigate("/content-management")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to library
+          </Button>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Video ingestion studio
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Upload raw lessons, add metadata, and route them through the
+              moderation workflow.
+            </p>
+          </div>
         </div>
+        <Badge variant="outline" className="gap-2 text-xs">
+          <ShieldCheck className="h-3 w-3" />
+          Assets are scanned for malware.{" "}
+          {/* backend: confirm AV scan status from upload response */}
+        </Badge>
+      </header>
 
-        {/* Upload Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-100">
-          <div className="flex items-center mb-6">
-            <div className="bg-blue-100 p-3 rounded-full mr-4">
-              <Upload className="w-6 h-6 text-blue-600" />
+      <Card className="border-border/70">
+        <CardHeader className="space-y-2">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <UploadCloud className="h-4 w-4" />
+            Upload a new asset
+          </CardTitle>
+          <CardDescription>
+            Provide a working title, categorize the resource, and attach the
+            source file.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                placeholder="e.g. Navigating quarterly budgets"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+              />
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900">Upload New file</h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Video Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter an engaging title for your video"
-                  value={videoTitle}
-                  onChange={(e) => setVideoTitle(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                  <Tag className="w-4 h-4 mr-2" />
-                  Category
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g., Education, Entertainment, Tutorial"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Input
+                id="category"
+                placeholder="Finance, Compliance, Leadership..."
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                // backend: replace free text with select fed by GET /categories
+              />
             </div>
-
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                <Video className="w-4 h-4 mr-2" />
-                 File
-              </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors duration-200">
-                <input
-                  type="file"
-                  accept="video/*,image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
-                  onChange={(e) => setVideoFile(e.target.files[0])}
-                  className="hidden"
-                  id="video-upload"
-                />
-                <label
-                  htmlFor="video-upload"
-                  className="cursor-pointer flex flex-col items-center"
-                >
-                  <Upload className="w-12 h-12 text-gray-400 mb-3" />
-                  <span className="text-sm text-gray-600">
-                    {videoFile ? videoFile.name : 'Click to upload q file'}
-                  </span>
-                  <span className="text-xs text-gray-400 mt-1">
-
-                  </span>
-                </label>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Moderator notes</Label>
+              <Textarea
+                id="description"
+                placeholder="Optional context for reviewers"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={4}
+              />
             </div>
           </div>
 
-          <div className="mt-6 flex justify-center">
+          <div className="space-y-4">
+            <Label>Source file</Label>
+            <label
+              htmlFor="file-upload"
+              className={cn(
+                "flex h-44 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/40 bg-muted/30 text-center transition hover:border-primary hover:bg-muted/50",
+                file && "border-primary"
+              )}
+            >
+              <Input
+                id="file-upload"
+                type="file"
+                accept="video/*,application/pdf,application/vnd.ms-powerpoint,application/vnd.ms-excel,.doc,.docx"
+                className="hidden"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              />
+              <VideoIcon className="h-8 w-8 text-muted-foreground" />
+              <div className="space-y-1 text-sm">
+                <p className="font-medium">Drop file or browse</p>
+                <p className="text-muted-foreground">
+                  MP4, PDF, PPTX, XLSX up to 500 MB
+                </p>
+              </div>
+              {file && <Badge variant="outline">{file.name}</Badge>}
+            </label>
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              {/* backend: surface transcoding status once upload API responds */}
+              We transcode uploads to adaptive bitrate streaming automatically.
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="justify-end">
+          <Button
+            className="gap-2"
+            disabled={uploading || !category || !title || !file}
+            onClick={handleUpload}
+          >
             {uploading ? (
-              <div className="flex items-center space-x-3 text-blue-600">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                <span className="font-medium">Processing video...</span>
-              </div>
+              <>
+                <Wand2 className="h-4 w-4 animate-spin" />
+                Processing
+              </>
             ) : (
-              <button
-                onClick={handleUpload}
-                disabled={!category || !videoFile || !videoTitle}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow-lg"
-              >
-                Upload & Generate Content
-              </button>
+              <>
+                <UploadCloud className="h-4 w-4" />
+                Upload & generate summary
+              </>
             )}
-          </div>
-        </div>
+          </Button>
+        </CardFooter>
+      </Card>
 
-        {/* Review Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <div className="flex items-center mb-6">
-            <div className="bg-purple-100 p-3 rounded-full mr-4">
-              <Play className="w-6 h-6 text-purple-600" />
-            </div>
-            <h3 className="text-2xl font-semibold text-gray-900">Content Review Queue</h3>
-            <span className="ml-auto bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-              {reviewVideos.length} videos
-            </span>
+      <Card className="border-border/70">
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-lg font-semibold">
+              Review queue
+            </CardTitle>
+            <CardDescription>
+              Track moderation state before publishing to the learner catalogue.
+            </CardDescription>
           </div>
-
-          {reviewVideos.length === 0 ? (
-            <div className="text-center py-12">
-              <Video className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">No videos to review yet</p>
-              <p className="text-gray-400 text-sm">Upload a video to get started</p>
+          <Badge variant="secondary">{queue.length} items</Badge>
+        </CardHeader>
+        <CardContent>
+          {queue.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-muted-foreground/40 bg-muted/20 py-12 text-center">
+              <VideoIcon className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No uploads pending</p>
+              <p className="text-xs text-muted-foreground">
+                New submissions will appear here for editorial review.
+              </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {reviewVideos.map((video) => (
-                <div
-                  key={video.id}
-                  className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all duration-200 bg-gradient-to-r from-white to-gray-50"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-2">
-                        <h4 className="text-lg font-semibold text-gray-900 mr-3">{video.title}</h4>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(video.status)}`}>
-                          {getStatusIcon(video.status)}
-                          <span className="ml-1 capitalize">{video.status}</span>
-                        </span>
+            <ScrollArea className="max-h-[420px] pr-4">
+              <div className="space-y-4">
+                {queue.map((item) => {
+                  const meta = STATUS_META[item.status];
+                  const Icon = meta.icon;
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm transition hover:border-primary"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold">
+                              {item.title}
+                            </p>
+                            <Badge variant="outline" className="capitalize">
+                              {item.category}
+                            </Badge>
+                            <Badge
+                              variant={meta.badge}
+                              className="gap-1 text-xs capitalize"
+                            >
+                              <Icon className="h-3 w-3" />
+                              {meta.label}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Uploaded {formatTimestamp(item.uploadedAt)}
+                            {item.filename ? ` • ${item.filename}` : ""}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {item.description}
+                          </p>
+                        </div>
+                        {item.status === "pending" && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="gap-1"
+                              onClick={() => updateStatus(item.id, "accepted")}
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => updateStatus(item.id, "rejected")}
+                            >
+                              <XCircle className="h-4 w-4" />
+                              Request edits
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      
-                      <div className="flex items-center text-sm text-gray-600 mb-3 space-x-4">
-                        <span className="flex items-center">
-                          <Tag className="w-4 h-4 mr-1" />
-                          {video.category}
-                        </span>
-                        <span className="flex items-center">
-                          <Clock className="w-4 h-4 mr-1" />
-                          {video.uploadedAt}
-                        </span>
-                      </div>
-                      
-                      <p className="text-gray-700 text-sm leading-relaxed">{video.description}</p>
                     </div>
-                    
-                    {video.status === 'pending' && (
-                      <div className="flex space-x-2 ml-6">
-                        <button
-                          onClick={() => handleAccept(video.id)}
-                          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-1"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          <span>Accept</span>
-                        </button>
-                        <button
-                          onClick={() => handleReject(video.id)}
-                          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-1"
-                        >
-                          <XCircle className="w-4 h-4" />
-                          <span>Reject</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
           )}
-        </div>
-      </div>
-    </div>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            {/* backend: sync with background worker to reflect transcription or AI summary progress */}
+            AI-powered transcripts attach automatically after approval.
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => navigate("/analytics")}
+          >
+            <Wand2 className="h-3 w-3" />
+            View ingestion analytics
+          </Button>
+        </CardFooter>
+      </Card>
+    </section>
   );
-};
-
-export default UploadContent;
+}

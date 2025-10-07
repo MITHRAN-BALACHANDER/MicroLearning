@@ -1,175 +1,220 @@
-import { useState } from 'react';
-import { Disclosure } from '@headlessui/react';
-import { ChevronDown } from 'lucide-react';
-import { Upload, Search } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Clock3, Search, Star, Upload } from "lucide-react";
 
-const categories = [
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+
+const MOCK_COLLECTION = [
   {
-    name: 'Finance',
+    name: "Finance",
     videos: [
       {
-        id: 'budgeting101',
-        title: 'Art of Budgeting',
+        id: "budgeting101",
+        title: "Art of Budgeting",
+        duration: "08:34",
         learners: 3,
-        rating: 4,
-        src: '/videos/sample.mp4',
-        description: 'Learn to manage your budget effectively.',
-        suggestion: 'Try writing down your monthly expenses.'
+        rating: 4.8,
+        tags: ["cashflow", "essentials"],
+        description: "Learn to manage your budget effectively.",
       },
       {
-        id: 'invest101',
-        title: 'Investing Basics',
+        id: "invest101",
+        title: "Investing Basics",
+        duration: "14:10",
         learners: 5,
-        rating: 5,
-        src: '/videos/sample.mp4',
-        description: 'Start investing with confidence.',
-        suggestion: 'Look into index funds.'
+        rating: 4.6,
+        tags: ["portfolio", "stocks"],
+        description: "Start investing with confidence.",
       },
-    ]
+    ],
   },
   {
-    name: 'Business',
+    name: "Business",
     videos: [
       {
-        id: 'startup101',
-        title: 'Starting a Startup',
+        id: "startup101",
+        title: "Starting a Startup",
+        duration: "12:47",
         learners: 4,
-        rating: 4,
-        src: '/videos/sample.mp4',
-        description: 'Steps to launch your startup.',
-        suggestion: 'Validate your idea before building.'
-      }
-    ]
+        rating: 4.3,
+        tags: ["pitch", "growth"],
+        description: "Steps to launch your startup.",
+      },
+    ],
   },
-  { name: 'Banking', videos: [] },
-  { name: 'Marketing', videos: [] },
-  { name: 'Estimation', videos: [] },
+  { name: "Banking", videos: [] },
+  { name: "Marketing", videos: [] },
+  { name: "Estimation", videos: [] },
+  // backend: replace static mock with GET /content/catalog grouped by category
 ];
 
 export default function ContentDisplay() {
-  const [selectedVideo, setSelectedVideo] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
+  const [query, setQuery] = useState("");
 
-  const handleCardClick = (video) => {
-    navigate(`/content-management/${video.id}`);
-  };
-
-  const filteredCategories = categories
-  .map((category) => {
-    const lowerSearch = searchTerm.toLowerCase();
-    const categoryMatches = category.name.toLowerCase().includes(lowerSearch);
-
-    const filteredVideos = categoryMatches
-      ? category.videos 
-      : category.videos.filter(video =>
-          video.title.toLowerCase().includes(lowerSearch)
-        );
-
-    return { ...category, videos: filteredVideos };
-  })
-  .filter(category => searchTerm === '' || category.videos.length > 0);
-
+  const filtered = useMemo(() => {
+    if (!query) return MOCK_COLLECTION;
+    const lower = query.toLowerCase();
+    return MOCK_COLLECTION.map((category) => {
+      const matchCategory = category.name.toLowerCase().includes(lower);
+      const videos = matchCategory
+        ? category.videos
+        : category.videos.filter((video) =>
+            [video.title, video.description, ...(video.tags ?? [])]
+              .join(" ")
+              .toLowerCase()
+              .includes(lower)
+          );
+      return { ...category, videos };
+    }).filter((category) => category.videos.length > 0);
+  }, [query]);
 
   return (
-    <div className="mx-auto p-4 mt-20 max-w-7xl">
-      <p className="text-4xl font-bold mb-5">Manage content</p>
-      <div className='flex flex-wrap justify-between items-center mb-6'>
-        <button
-          className='bg-gray-50 p-2 mb-3 flex items-center hover:bg-gray-200 rounded-xl transition-all'
-          onClick={() => navigate('/uploadContent')}
-        >
-          <Upload /> <p className='ml-3'> Upload content</p>
-        </button>
-        <div className='bg-gray-50 p-2 flex items-center rounded-xl hover:bg-gray-200 transition-all'>
-          <Search />
-          <input
-            className='ml-3 bg-transparent focus:outline-none'
-            placeholder="Search for content"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+    <section className="space-y-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Content library
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Curate and review every micro-lesson. Filter by topic, tags or
+            contributor.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <div className="relative hidden sm:block">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search title, tag or author"
+              className="w-72 pl-9"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              // backend: debounce and pass query to /content/search endpoint
+            />
+          </div>
+          <Button onClick={() => navigate("/upload-content")}>
+            Upload content
+          </Button>
+        </div>
+      </header>
+
+      <div className="sm:hidden">
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search content"
+            className="pl-9"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
           />
         </div>
       </div>
 
-      {selectedVideo && (
-        <div className="mb-10">
-          <div className="w-full h-[50vh] overflow-hidden rounded-xl shadow">
-            <video
-              className="w-full h-full object-cover"
-              src={selectedVideo.src}
-              controls
-              autoPlay
-              muted
-              loop
-            />
-          </div>
-
-          <div className="flex flex-wrap justify-between items-start mt-4">
-            <div>
-              <h1 className="text-3xl font-bold">{selectedVideo.title}</h1>
-              <p className="text-gray-700">{selectedVideo.description}</p>
-              <p className="text-sm italic mt-1 text-gray-500">{selectedVideo.suggestion}</p>
-            </div>
-            <div className="flex gap-2 mt-4 sm:mt-0">
-              <button
-                onClick={() => console.log('Test clicked')}
-                className="bg-gray-200 hover:bg-gray-700 hover:text-white transition rounded-2xl px-4 py-2"
-              >
-                Test Review
-              </button>
-              <button
-                onClick={() => console.log('Feedback clicked')}
-                className="bg-gray-200 hover:bg-gray-700 hover:text-white transition rounded-2xl px-4 py-2"
-              >
-                Feedback
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {filteredCategories.map((category, idx) => (
-        <Disclosure key={idx}>
-          {({ open }) => (
-            <div className="mb-4">
-              <Disclosure.Button className="flex items-center justify-between w-full py-3 text-xl font-semibold focus:outline-none">
-                <span>{category.name}</span>
-                <ChevronDown
-                  className={`h-5 w-5 transition-transform duration-300 ${
-                    open ? 'rotate-180' : ''
-                  }`}
-                />
-              </Disclosure.Button>
-              <Disclosure.Panel>
-                {category.videos && category.videos.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-2">
-                    {category.videos.map((video, i) => (
-                      <div
-                        key={i}
-                        onClick={() => handleCardClick(video)}
-                        className="bg-white rounded-xl shadow p-3 cursor-pointer hover:shadow-lg transition"
+      <Accordion
+        type="single"
+        collapsible
+        className="rounded-xl border bg-card"
+      >
+        {filtered.map((category) => (
+          <AccordionItem key={category.name} value={category.name}>
+            <AccordionTrigger className="px-6 text-left">
+              <div className="flex w-full items-center justify-between">
+                <span className="text-base font-semibold">{category.name}</span>
+                <Badge variant="secondary">
+                  {category.videos.length} videos
+                </Badge>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6">
+              {category.videos.length ? (
+                <ScrollArea className="w-full">
+                  <div className="grid gap-4 py-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {category.videos.map((video) => (
+                      <Card
+                        key={video.id}
+                        className="group flex cursor-pointer flex-col border-border/60 transition hover:border-primary"
+                        onClick={() =>
+                          navigate(`/content-management/${video.id}`)
+                        }
                       >
-                        <div className="h-40 bg-gray-300 rounded-md mb-2 flex items-center justify-center">
-                          <span className="text-gray-600">Video Thumbnail</span>
-                        </div>
-                        <h3 className="font-medium">{video.title}</h3>
-                        <p className="text-sm text-gray-500">{video.learners} learners</p>
-                        <div className="text-yellow-500 mt-1">
-                          {'★'.repeat(video.rating)}{'☆'.repeat(5 - video.rating)}
-                        </div>
-                      </div>
+                        <CardHeader className="gap-2">
+                          <CardTitle className="text-base font-semibold">
+                            {video.title}
+                          </CardTitle>
+                          <CardDescription>{video.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex-1 space-y-3">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock3 className="h-4 w-4" />
+                            {video.duration}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {video.tags?.map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant="outline"
+                                className="capitalize"
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </CardContent>
+                        <CardFooter className="flex items-center justify-between border-t bg-muted/40 px-4 py-3 text-xs">
+                          <span>{video.learners} active learners</span>
+                          <span className="flex items-center gap-1 font-medium">
+                            <Star className="h-3 w-3 text-amber-500" />
+                            {video.rating}
+                          </span>
+                        </CardFooter>
+                      </Card>
                     ))}
                   </div>
-                ) : (
-                  <div className="text-gray-500 italic mt-2">No videos in this category.</div>
-                )}
-              </Disclosure.Panel>
-            </div>
-          )}
-        </Disclosure>
-      ))}
-    </div>
+                </ScrollArea>
+              ) : (
+                <div className="py-6 text-sm text-muted-foreground">
+                  No videos available yet.{" "}
+                  {/* backend: surface CTA when category response is empty */}
+                </div>
+              )}
+              <Separator className="my-4" />
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 text-xs text-muted-foreground">
+                <span>
+                  {/* backend: populate with contributor name and last updated timestamp */}
+                  Last updated: awaiting sync
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => navigate("/upload-content")}
+                >
+                  <Upload className="h-3 w-3" />
+                  Add video
+                </Button>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </section>
   );
 }
