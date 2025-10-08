@@ -27,6 +27,9 @@ exports.login = async (req, res) => {
 
     const token = generateToken({ id: user._id, role });
 
+    console.log('Generated token:', token ? 'Token exists' : 'No token');
+    console.log('Token length:', token?.length);
+
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -34,14 +37,19 @@ exports.login = async (req, res) => {
       maxAge: 5 * 24 * 60 * 60 * 1000,  // 5 days
     });
 
-    res.json({
+    const responseData = {
+      token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role,
       },
-    });
+    };
+
+    console.log('Sending response:', JSON.stringify(responseData, null, 2));
+
+    res.json(responseData);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

@@ -13,6 +13,7 @@ const videoRoutes = require('./routes/videoRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const feedbackRoutes = require('./routes/feedbackRoute');
 const groupRoutes = require('./routes/groupRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const errorMiddleware = require('./middleware/errorMiddleware');
 
 dotenv.config();
@@ -34,6 +35,7 @@ app.use('/api/category', categoryRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling middleware (must be after all routes)
 app.use(errorMiddleware);
