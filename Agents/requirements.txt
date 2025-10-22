@@ -1,0 +1,38 @@
+# Core dependencies
+python-telegram-bot==20.7
+agno==2.1.9
+python-dotenv==1.0.0
+
+# Database
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.0
+
+# Vector DB for RAG
+chromadb==0.4.22
+sentence-transformers>=3.0.0
+
+# AI/LLM
+google-generativeai==0.3.2
+langchain==0.1.0
+langchain-google-genai==0.0.5
+langchain-community==0.0.10
+
+# Embeddings and utilities
+numpy==1.26.2
+pandas==2.1.4
+tiktoken==0.5.2
+
+# File handling
+PyPDF2==3.0.1
+python-docx==1.1.0
+
+# Scheduling
+apscheduler==3.10.4
+
+# Logging and monitoring
+loguru==0.7.2
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
