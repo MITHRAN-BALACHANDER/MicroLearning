@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Videos{% endblock %}
+{% block page_title %}Video Management{% endblock %}
+
+{% block content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-camera-video"></i> All Videos ({{ videos|length }})</h5>
+        <a href="{{ url_for('add_video') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Video
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Duration</th>
+                        <th>Difficulty</th>
+                        <th>Watches</th>
+                        <th>Completed</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for video in videos %}
+                    <tr>
+                        <td>{{ video.id }}</td>
+                        <td>
+                            <strong>{{ video.title }}</strong>
+                            {% if video.description %}
+                            <br><small class="text-muted">{{ video.description[:50] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if video.duration %}
+                                {{ (video.duration // 60) }}:{{ '%02d'|format(video.duration % 60) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {{ '⭐' * video.difficulty_level }}
+                            </span>
+                        </td>
+                        <td>{{ video_stats[video.id].total_watches }}</td>
+                        <td>
+                            <span class="badge bg-success">
+                                {{ video_stats[video.id].completed_watches }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if video.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('edit_video', video_id=video.id) }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('toggle_video', video_id=video.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-outline-warning">
+                                        <i class="bi bi-toggle-{{ 'on' if video.is_active else 'off' }}"></i>
+                                    </button>
+                                </form>
+                                <button class="btn btn-outline-danger" onclick="deleteVideo({{ video.id }}, '{{ video.title }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteVideo(id, title) {
+    if (confirm(`Are you sure you want to delete "${title}"?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/videos/${id}/delete`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card border-0 bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-white-50">Total Users</h6>
+                        <h2 class="mb-0">{{ stats.total_users }}</h2>
+                        <small>{{ stats.active_users }} active</small>
+                    </div>
+                    <i class="bi bi-people" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card border-0 bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-white-50">Total Videos</h6>
+                        <h2 class="mb-0">{{ stats.total_videos }}</h2>
+                        <small>{{ stats.active_videos }} active</small>
+                    </div>
+                    <i class="bi bi-camera-video" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card border-0 bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-white-50">Quiz Attempts</h6>
+                        <h2 class="mb-0">{{ stats.total_quiz_attempts }}</h2>
+                        <small>{{ stats.total_questions }} questions</small>
+                    </div>
+                    <i class="bi bi-question-circle" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card border-0 bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-white-50">Videos Watched</h6>
+                        <h2 class="mb-0">{{ stats.videos_watched }}</h2>
+                        <small>Completed</small>
+                    </div>
+                    <i class="bi bi-check-circle" style="font-size: 3rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title mb-3"><i class="bi bi-activity"></i> User Activity</h5>
+                <div class="d-flex justify-content-around">
+                    <div class="text-center">
+                        <h3 class="text-primary">{{ stats.active_today }}</h3>
+                        <small class="text-muted">Active Today</small>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-success">{{ stats.active_this_week }}</h3>
+                        <small class="text-muted">Active This Week</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title mb-3"><i class="bi bi-graph-up"></i> Quick Actions</h5>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('add_video') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add New Video
+                    </a>
+                    <a href="{{ url_for('analytics') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-bar-chart"></i> View Analytics
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-people"></i> Recent Users</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in recent_users %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('user_detail', user_id=user.id) }}">
+                                        {{ user.username or 'N/A' }}
+                                    </a>
+                                </td>
+                                <td>{{ user.first_name }} {{ user.last_name or '' }}</td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Quiz Attempts</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Rating</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attempt in recent_attempts %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('user_detail', user_id=attempt.user_id) }}">
+                                        User #{{ attempt.user_id }}
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if attempt.rating >= 7 else 'warning' if attempt.rating >= 4 else 'danger' }}">
+                                        {{ "%.1f"|format(attempt.rating or 0) }}/10
+                                    </span>
+                                </td>
+                                <td>{{ attempt.attempted_at.strftime('%H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh stats every 30 seconds
+    setInterval(function() {
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Stats updated:', data);
+            });
+    }, 30000);
+</script>
+{% endblock %}

@@ -3,6 +3,10 @@ python-telegram-bot==20.7
 agno==2.1.9
 python-dotenv==1.0.0
 
+# Web Dashboard
+Flask==3.0.0
+Werkzeug==3.0.1
+
 # Database
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9

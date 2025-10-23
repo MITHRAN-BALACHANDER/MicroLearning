@@ -27,6 +27,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./microlearning.db")
 # ChromaDB Configuration
 CHROMA_PERSIST_DIRECTORY = os.getenv("CHROMA_PERSIST_DIRECTORY", "./data/chroma_db")
 
+# Admin Dashboard Configuration
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
 # Agent Configuration
 DAILY_VIDEO_TIME = os.getenv("DAILY_VIDEO_TIME", "09:00")
 VIDEO_BATCH_SIZE = int(os.getenv("VIDEO_BATCH_SIZE", "1"))
