@@ -181,6 +181,139 @@ def toggle_user(user_id):
     return redirect(url_for('users'))
 
 
+@app.route('/users/add', methods=['GET', 'POST'])
+@login_required
+def add_user():
+    """Add new user"""
+    if request.method == 'POST':
+        db = SessionLocal()
+        try:
+            # Get form data
+            telegram_id = request.form.get('telegram_id')
+            username = request.form.get('username')
+            first_name = request.form.get('first_name')
+            last_name = request.form.get('last_name')
+            is_active = request.form.get('is_active') == 'on'
+            
+            # Validate required fields
+            if not telegram_id or not username:
+                flash('Telegram ID and Username are required!', 'error')
+                return render_template('add_user.html')
+            
+            # Check if telegram_id already exists
+            existing_user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if existing_user:
+                flash('A user with this Telegram ID already exists!', 'error')
+                return render_template('add_user.html')
+            
+            # Create new user
+            new_user = User(
+                telegram_id=telegram_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                is_active=is_active
+            )
+            
+            db.add(new_user)
+            db.commit()
+            flash(f'User {username} created successfully!', 'success')
+            return redirect(url_for('users'))
+            
+        except Exception as e:
+            db.rollback()
+            flash(f'Error creating user: {str(e)}', 'error')
+            return render_template('add_user.html')
+        finally:
+            db.close()
+    
+    return render_template('add_user.html')
+
+
+@app.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_user(user_id):
+    """Edit existing user"""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            flash('User not found!', 'error')
+            return redirect(url_for('users'))
+        
+        if request.method == 'POST':
+            # Get form data
+            telegram_id = request.form.get('telegram_id')
+            username = request.form.get('username')
+            first_name = request.form.get('first_name')
+            last_name = request.form.get('last_name')
+            is_active = request.form.get('is_active') == 'on'
+            
+            # Validate required fields
+            if not telegram_id or not username:
+                flash('Telegram ID and Username are required!', 'error')
+                return render_template('edit_user.html', user=user)
+            
+            # Check if telegram_id is being changed to one that already exists
+            if telegram_id != user.telegram_id:
+                existing_user = db.query(User).filter(User.telegram_id == telegram_id).first()
+                if existing_user:
+                    flash('A user with this Telegram ID already exists!', 'error')
+                    return render_template('edit_user.html', user=user)
+            
+            # Update user
+            user.telegram_id = telegram_id
+            user.username = username
+            user.first_name = first_name
+            user.last_name = last_name
+            user.is_active = is_active
+            
+            db.commit()
+            flash(f'User {username} updated successfully!', 'success')
+            return redirect(url_for('user_detail', user_id=user_id))
+        
+        return render_template('edit_user.html', user=user)
+        
+    except Exception as e:
+        db.rollback()
+        flash(f'Error updating user: {str(e)}', 'error')
+        return redirect(url_for('users'))
+    finally:
+        db.close()
+
+
+@app.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    """Delete user"""
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            flash('User not found!', 'error')
+            return redirect(url_for('users'))
+        
+        username = user.username
+        
+        # Delete related records first
+        db.query(VideoProgress).filter(VideoProgress.user_id == user_id).delete()
+        db.query(QuizAttempt).filter(QuizAttempt.user_id == user_id).delete()
+        
+        # Delete user
+        db.delete(user)
+        db.commit()
+        
+        flash(f'User {username} deleted successfully!', 'success')
+        
+    except Exception as e:
+        db.rollback()
+        flash(f'Error deleting user: {str(e)}', 'error')
+    finally:
+        db.close()
+    
+    return redirect(url_for('users'))
+
+
 @app.route('/videos')
 @login_required
 def videos():
