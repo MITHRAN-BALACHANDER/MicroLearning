@@ -108,7 +108,8 @@ def users():
     db = SessionLocal()
     try:
         all_users = db.query(User).order_by(User.created_at.desc()).all()
-        return render_template('users.html', users=all_users)
+        # Render clean template to avoid previously corrupted file
+        return render_template('users_clean.html', users=all_users)
     finally:
         db.close()
 

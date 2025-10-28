@@ -1,65 +1,54 @@
 {% extends "base.html" %}
-
-{% block title %}Edit Video{% endblock %}
-{% block page_title %}Edit Video{% endblock %}
-
+{% block title %}Edit Video - MicroLearning Admin{% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="bi bi-pencil"></i> Edit Video: {{ video.title }}</h5>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="title" class="form-label">Title *</label>
-                        <input type="text" class="form-control" id="title" name="title" value="{{ video.title }}" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="description" class="form-label">Description</label>
-                        <textarea class="form-control" id="description" name="description" rows="3">{{ video.description or '' }}</textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="file_id" class="form-label">File Path/ID</label>
-                        <input type="text" class="form-control" id="file_id" name="file_id" value="{{ video.file_id }}" placeholder="Leave blank to keep current">
-                        <small class="text-muted">Current: {{ video.file_id[:50] }}...</small>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="duration" class="form-label">Duration (seconds)</label>
-                                <input type="number" class="form-control" id="duration" name="duration" value="{{ video.duration or '' }}">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="difficulty" class="form-label">Difficulty Level</label>
-                                <select class="form-select" id="difficulty" name="difficulty">
-                                    <option value="1" {{ 'selected' if video.difficulty_level == 1 }}>⭐ Easy</option>
-                                    <option value="2" {{ 'selected' if video.difficulty_level == 2 }}>⭐⭐ Medium</option>
-                                    <option value="3" {{ 'selected' if video.difficulty_level == 3 }}>⭐⭐⭐ Hard</option>
-                                    <option value="4" {{ 'selected' if video.difficulty_level == 4 }}>⭐⭐⭐⭐ Expert</option>
-                                    <option value="5" {{ 'selected' if video.difficulty_level == 5 }}>⭐⭐⭐⭐⭐ Master</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('videos') }}" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> Cancel
-                        </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check-circle"></i> Update Video
-                        </button>
-                    </div>
-                </form>
-            </div>
+<div class="mb-8">
+    <a href="{{ url_for('videos') }}" class="text-sm text-neutral-600 hover:text-neutral-900 inline-flex items-center mb-4">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Back to Videos
+    </a>
+    <h1 class="text-3xl font-semibold text-neutral-900 tracking-tight">Edit Video</h1>
+</div>
+
+<div class="bg-white border border-neutral-200 rounded-lg p-8 max-w-2xl">
+    <form method="POST" class="space-y-6">
+        <div>
+            <label for="title" class="block text-sm font-medium text-neutral-900 mb-2">Title</label>
+            <input type="text" id="title" name="title" value="{{ video.title }}" required
+                   class="w-full px-4 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all bg-white text-neutral-900">
         </div>
-    </div>
+        
+        <div>
+            <label for="description" class="block text-sm font-medium text-neutral-900 mb-2">Description</label>
+            <textarea id="description" name="description" rows="4"
+                      class="w-full px-4 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all bg-white text-neutral-900">{{ video.description }}</textarea>
+        </div>
+        
+        <div>
+            <label for="gemini_file_id" class="block text-sm font-medium text-neutral-900 mb-2">Gemini File ID</label>
+            <input type="text" id="gemini_file_id" name="gemini_file_id" value="{{ video.gemini_file_id }}" required
+                   class="w-full px-4 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all bg-white text-neutral-900">
+        </div>
+        
+        <div>
+            <label for="order_index" class="block text-sm font-medium text-neutral-900 mb-2">Order</label>
+            <input type="number" id="order_index" name="order_index" value="{{ video.order_index }}"
+                   class="w-full px-4 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all bg-white text-neutral-900">
+        </div>
+        
+        <div class="flex items-center">
+            <input type="checkbox" id="is_active" name="is_active" {% if video.is_active %}checked{% endif %}
+                   class="w-4 h-4 text-neutral-900 border-neutral-300 rounded focus:ring-neutral-900">
+            <label for="is_active" class="ml-2 text-sm font-medium text-neutral-900">Active</label>
+        </div>
+        
+        <div class="flex gap-3 pt-4">
+            <button type="submit" class="px-6 py-2.5 text-sm font-semibold text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 transition-colors">
+                Save Changes
+            </button>
+            <a href="{{ url_for('videos') }}" class="px-6 py-2.5 text-sm font-semibold text-neutral-900 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors">
+                Cancel
+            </a>
+        </div>
+    </form>
 </div>
 {% endblock %}

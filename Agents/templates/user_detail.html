@@ -1,158 +1,89 @@
 {% extends "base.html" %}
-
-{% block title %}User Detail{% endblock %}
-{% block page_title %}User Details{% endblock %}
-
+{% block title %}{{ user.full_name }} - MicroLearning Admin{% endblock %}
 {% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body text-center">
-                <div class="mb-3">
-                    <i class="bi bi-person-circle" style="font-size: 5rem; color: #667eea;"></i>
-                </div>
-                <h4>{{ user.first_name }} {{ user.last_name or '' }}</h4>
-                <p class="text-muted">@{{ user.username or 'N/A' }}</p>
-                <p><code>{{ user.telegram_id }}</code></p>
-                <span class="badge bg-{{ 'success' if user.is_active else 'secondary' }}">
-                    {{ 'Active' if user.is_active else 'Inactive' }}
-                </span>
-            </div>
-        </div>
-        
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="mb-3">User Info</h6>
-                <p><strong>Joined:</strong><br>{{ user.created_at.strftime('%B %d, %Y') }}</p>
-                <p><strong>Last Active:</strong><br>{{ user.last_active.strftime('%B %d, %Y %H:%M') if user.last_active else 'Never' }}</p>
-                <hr>
-                <div class="d-grid">
-                    <form method="POST" action="{{ url_for('toggle_user', user_id=user.id) }}">
-                        <button type="submit" class="btn btn-{{ 'warning' if user.is_active else 'success' }} w-100">
-                            {{ 'Deactivate' if user.is_active else 'Activate' }} User
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
+<div class="mb-8">
+    <a href="{{ url_for('users') }}" class="text-sm text-neutral-600 hover:text-neutral-900 inline-flex items-center mb-4">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Back to Users
+    </a>
+    <h1 class="text-3xl font-semibold text-neutral-900 tracking-tight">{{ user.full_name }}</h1>
+    <p class="mt-2 text-sm text-neutral-600">Telegram ID: {{ user.telegram_id }}</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <div class="text-sm font-medium text-neutral-600 mb-1">Videos Watched</div>
+        <div class="text-3xl font-semibold text-neutral-900">{{ user_stats.videos_watched }}</div>
     </div>
-    
-    <div class="col-md-8">
-        <!-- Stats -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-3">
-                <div class="card border-0 bg-primary text-white">
-                    <div class="card-body text-center">
-                        <h3>{{ user_stats.completed_videos }}</h3>
-                        <small>Videos Completed</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 bg-success text-white">
-                    <div class="card-body text-center">
-                        <h3>{{ user_stats.completion_rate }}%</h3>
-                        <small>Completion Rate</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 bg-warning text-white">
-                    <div class="card-body text-center">
-                        <h3>{{ user_stats.quiz_attempts }}</h3>
-                        <small>Quiz Attempts</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 bg-info text-white">
-                    <div class="card-body text-center">
-                        <h3>{{ user_stats.avg_rating }}</h3>
-                        <small>Avg Rating</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Video Progress -->
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="bi bi-play-circle"></i> Video Progress</h5>
-            </div>
-            <div class="card-body">
-                {% if progress %}
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Video</th>
-                                <th>Watched</th>
-                                <th>Status</th>
-                                <th>Watch Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in progress %}
-                            <tr>
-                                <td>Video #{{ p.video_id }}</td>
-                                <td>{{ p.watched_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>
-                                    {% if p.completed %}
-                                        <span class="badge bg-success">Completed</span>
-                                    {% else %}
-                                        <span class="badge bg-warning">In Progress</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ p.watch_time }}s</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <div class="text-sm font-medium text-neutral-600 mb-1">Quiz Attempts</div>
+        <div class="text-3xl font-semibold text-neutral-900">{{ user_stats.quiz_attempts }}</div>
+    </div>
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <div class="text-sm font-medium text-neutral-600 mb-1">Avg. Score</div>
+        <div class="text-3xl font-semibold text-neutral-900">{{ "%.1f"|format(user_stats.avg_score or 0) }}%</div>
+    </div>
+</div>
+
+<div class="bg-white border border-neutral-200 rounded-lg p-6 mb-6">
+    <h3 class="text-lg font-semibold text-neutral-900 mb-4">Video Progress</h3>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-neutral-200">
+            <thead class="bg-neutral-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Video</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Last Watched</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-neutral-200">
+                {% for prog in progress %}
+                <tr class="hover:bg-neutral-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{{ prog.video.title }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded {% if prog.completed %}bg-neutral-900 text-white{% else %}bg-neutral-200 text-neutral-600{% endif %}">
+                            {{ 'Completed' if prog.completed else 'In Progress' }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{{ prog.last_watched.strftime('%Y-%m-%d %H:%M') if prog.last_watched else 'N/A' }}</td>
+                </tr>
                 {% else %}
-                <p class="text-muted text-center py-3">No video progress yet</p>
-                {% endif %}
-            </div>
-        </div>
-        
-        <!-- Quiz Attempts -->
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="bi bi-question-circle"></i> Recent Quiz Attempts</h5>
-            </div>
-            <div class="card-body">
-                {% if attempts %}
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Question</th>
-                                <th>Answer</th>
-                                <th>Rating</th>
-                                <th>Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for attempt in attempts[:10] %}
-                            <tr>
-                                <td>Q#{{ attempt.question_id }}</td>
-                                <td>{{ attempt.user_answer[:50] }}...</td>
-                                <td>
-                                    <span class="badge bg-{{ 'success' if attempt.rating >= 7 else 'warning' if attempt.rating >= 4 else 'danger' }}">
-                                        {{ "%.1f"|format(attempt.rating or 0) }}/10
-                                    </span>
-                                </td>
-                                <td>{{ attempt.attempted_at.strftime('%m/%d %H:%M') }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+                <tr><td colspan="3" class="px-6 py-8 text-center text-sm text-neutral-500">No video progress found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="bg-white border border-neutral-200 rounded-lg p-6">
+    <h3 class="text-lg font-semibold text-neutral-900 mb-4">Quiz Attempts</h3>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-neutral-200">
+            <thead class="bg-neutral-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Video</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Score</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Completed</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Date</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-neutral-200">
+                {% for attempt in attempts %}
+                <tr class="hover:bg-neutral-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-neutral-900">{{ attempt.video.title }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{{ attempt.score }}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium rounded {% if attempt.completed %}bg-neutral-900 text-white{% else %}bg-neutral-200 text-neutral-600{% endif %}">
+                            {{ 'Yes' if attempt.completed else 'No' }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-500">{{ attempt.completed_at.strftime('%Y-%m-%d %H:%M') if attempt.completed_at else 'N/A' }}</td>
+                </tr>
                 {% else %}
-                <p class="text-muted text-center py-3">No quiz attempts yet</p>
-                {% endif %}
-            </div>
-        </div>
+                <tr><td colspan="4" class="px-6 py-8 text-center text-sm text-neutral-500">No quiz attempts found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

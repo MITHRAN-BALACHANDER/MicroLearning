@@ -1,4 +1,10 @@
-<!DOCTYPE html>
+"""
+Script to generate all admin dashboard templates with black & white theme
+"""
+import os
+
+# Base template
+BASE_HTML = '''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -152,3 +158,163 @@
     {% block extra_js %}{% endblock %}
 </body>
 </html>
+'''
+
+# Login template
+LOGIN_HTML = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - MicroLearning Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-white antialiased">
+    <div class="min-h-screen flex items-center justify-center px-4 py-12">
+        <div class="w-full max-w-md">
+            <div class="text-center mb-10">
+                <div class="inline-flex items-center justify-center w-16 h-16 mb-6 border-2 border-neutral-900 rounded-lg">
+                    <svg class="w-8 h-8 text-neutral-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-semibold text-neutral-900 tracking-tight mb-2">MicroLearning</h1>
+                <p class="text-sm text-neutral-600 font-medium">Admin Dashboard</p>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="mb-6 space-y-2">
+                        {% for category, message in messages %}
+                            <div class="px-4 py-3 rounded-lg border text-sm font-medium
+                                        {% if category == 'error' %}bg-neutral-900 border-neutral-900 text-white{% else %}bg-neutral-50 border-neutral-300 text-neutral-900{% endif %}"
+                                 role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            <form method="POST" class="space-y-5">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-neutral-900 mb-2">Username</label>
+                    <input type="text" id="username" name="username" required autofocus
+                           class="w-full px-4 py-3 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all duration-150 bg-white text-neutral-900 placeholder:text-neutral-400"
+                           placeholder="Enter your username">
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-medium text-neutral-900 mb-2">Password</label>
+                    <input type="password" id="password" name="password" required
+                           class="w-full px-4 py-3 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all duration-150 bg-white text-neutral-900 placeholder:text-neutral-400"
+                           placeholder="Enter your password">
+                </div>
+                
+                <button type="submit" 
+                        class="w-full px-4 py-3 text-sm font-semibold text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-900 transition-all duration-150 active:bg-black">
+                    Sign In
+                </button>
+            </form>
+            
+            <div class="mt-8 text-center">
+                <p class="text-xs text-neutral-500">Secure authentication required for dashboard access</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+'''
+
+# Dashboard template - simplified placeholder
+DASHBOARD_HTML = '''{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-semibold text-neutral-900 tracking-tight">Dashboard</h1>
+    <p class="mt-2 text-sm text-neutral-600">Overview of your MicroLearning platform</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <div class="text-sm font-medium text-neutral-600 mb-1">Total Users</div>
+        <div class="text-3xl font-semibold text-neutral-900">{{ stats.total_users }}</div>
+        <div class="text-xs text-neutral-500 mt-1">{{ stats.active_users }} active</div>
+    </div>
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <div class="text-sm font-medium text-neutral-600 mb-1">Total Videos</div>
+        <div class="text-3xl font-semibold text-neutral-900">{{ stats.total_videos }}</div>
+        <div class="text-xs text-neutral-500 mt-1">{{ stats.active_videos }} active</div>
+    </div>
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <div class="text-sm font-medium text-neutral-600 mb-1">Quiz Attempts</div>
+        <div class="text-3xl font-semibold text-neutral-900">{{ stats.total_quiz_attempts }}</div>
+        <div class="text-xs text-neutral-500 mt-1">{{ stats.total_questions }} questions</div>
+    </div>
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <div class="text-sm font-medium text-neutral-600 mb-1">Videos Watched</div>
+        <div class="text-3xl font-semibold text-neutral-900">{{ stats.videos_watched }}</div>
+        <div class="text-xs text-neutral-500 mt-1">Completed</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-neutral-900 mb-4">User Activity</h2>
+        <div class="flex justify-around">
+            <div class="text-center">
+                <div class="text-2xl font-semibold text-neutral-900">{{ stats.active_today }}</div>
+                <div class="text-xs text-neutral-600 mt-1">Active Today</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-semibold text-neutral-900">{{ stats.active_this_week }}</div>
+                <div class="text-xs text-neutral-600 mt-1">Active This Week</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white border border-neutral-200 rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-neutral-900 mb-4">Quick Actions</h2>
+        <div class="space-y-2">
+            <a href="{{ url_for('add_video') }}" class="block px-4 py-2 text-sm font-medium text-center text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 transition-colors">Add New Video</a>
+            <a href="{{ url_for('analytics') }}" class="block px-4 py-2 text-sm font-medium text-center text-neutral-900 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors">View Analytics</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+'''
+
+# Create templates directory if it doesn't exist
+template_dir = os.path.join(os.path.dirname(__file__), 'templates')
+os.makedirs(template_dir, exist_ok=True)
+
+# Write all template files
+templates = {
+    'base.html': BASE_HTML,
+    'login.html': LOGIN_HTML,
+    'dashboard.html': DASHBOARD_HTML,
+}
+
+for filename, content in templates.items():
+    filepath = os.path.join(template_dir, filename)
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f'✓ Created {filename}')
+
+print(f'\nSuccessfully created {len(templates)} template files!')
+print('Note: Remaining templates (users.html, videos.html, etc.) need to be created')
+print('Run the dashboard to test: python admin_dashboard.py')

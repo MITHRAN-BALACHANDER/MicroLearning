@@ -1,100 +1,53 @@
 {% extends "base.html" %}
-
-{% block title %}Videos{% endblock %}
-{% block page_title %}Video Management{% endblock %}
-
+{% block title %}Videos - MicroLearning Admin{% endblock %}
 {% block content %}
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="bi bi-camera-video"></i> All Videos ({{ videos|length }})</h5>
-        <a href="{{ url_for('add_video') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Add Video
-        </a>
+<div class="flex justify-between items-center mb-8">
+    <div>
+        <h1 class="text-3xl font-semibold text-neutral-900 tracking-tight">Videos</h1>
+        <p class="mt-2 text-sm text-neutral-600">Manage learning content and video library</p>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Title</th>
-                        <th>Duration</th>
-                        <th>Difficulty</th>
-                        <th>Watches</th>
-                        <th>Completed</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for video in videos %}
-                    <tr>
-                        <td>{{ video.id }}</td>
-                        <td>
-                            <strong>{{ video.title }}</strong>
-                            {% if video.description %}
-                            <br><small class="text-muted">{{ video.description[:50] }}...</small>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if video.duration %}
-                                {{ (video.duration // 60) }}:{{ '%02d'|format(video.duration % 60) }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span class="badge bg-secondary">
-                                {{ '⭐' * video.difficulty_level }}
-                            </span>
-                        </td>
-                        <td>{{ video_stats[video.id].total_watches }}</td>
-                        <td>
-                            <span class="badge bg-success">
-                                {{ video_stats[video.id].completed_watches }}
-                            </span>
-                        </td>
-                        <td>
-                            {% if video.is_active %}
-                                <span class="badge bg-success">Active</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Inactive</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('edit_video', video_id=video.id) }}" class="btn btn-outline-primary">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <form method="POST" action="{{ url_for('toggle_video', video_id=video.id) }}" style="display: inline;">
-                                    <button type="submit" class="btn btn-outline-warning">
-                                        <i class="bi bi-toggle-{{ 'on' if video.is_active else 'off' }}"></i>
-                                    </button>
-                                </form>
-                                <button class="btn btn-outline-danger" onclick="deleteVideo({{ video.id }}, '{{ video.title }}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <a href="{{ url_for('add_video') }}" class="px-4 py-2.5 text-sm font-semibold text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 transition-colors inline-flex items-center">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Video
+    </a>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-function deleteVideo(id, title) {
-    if (confirm(`Are you sure you want to delete "${title}"?`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/videos/${id}/delete`;
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-</script>
+<div class="bg-white border border-neutral-200 rounded-lg overflow-hidden">
+    <table class="min-w-full divide-y divide-neutral-200">
+        <thead class="bg-neutral-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Title</th>
+                <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Description</th>
+                <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-semibold text-neutral-900 uppercase tracking-wider">Views</th>
+                <th class="px-6 py-3 text-right text-xs font-semibold text-neutral-900 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-neutral-200">
+            {% for video in videos %}
+            <tr class="hover:bg-neutral-50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="text-sm font-medium text-neutral-900">{{ video.title }}</div>
+                </td>
+                <td class="px-6 py-4">
+                    <div class="text-sm text-neutral-600 max-w-xs truncate">{{ video.description or 'No description' }}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 py-1 text-xs font-medium rounded {% if video.is_active %}bg-neutral-900 text-white{% else %}bg-neutral-200 text-neutral-600{% endif %}">
+                        {{ 'Active' if video.is_active else 'Inactive' }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-neutral-600">{{ video.view_count or 0 }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                    <a href="{{ url_for('edit_video', video_id=video.id) }}" class="text-neutral-900 hover:text-neutral-600">Edit</a>
+                    <a href="{{ url_for('toggle_video', video_id=video.id) }}" class="text-neutral-900 hover:text-neutral-600">{{ 'Deactivate' if video.is_active else 'Activate' }}</a>
+                    <a href="{{ url_for('delete_video', video_id=video.id) }}" onclick="return confirm('Delete this video?')" class="text-neutral-900 hover:text-neutral-600">Delete</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="px-6 py-8 text-center text-sm text-neutral-500">No videos found. Click "Add Video" to get started.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}
