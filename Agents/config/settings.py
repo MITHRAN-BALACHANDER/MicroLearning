@@ -21,6 +21,11 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 AGNO_API_KEY = os.getenv("AGNO_API_KEY")
 AGNO_ENV = os.getenv("AGNO_ENV", "development")
 
+# KIE.AI Video Generation API Configuration
+KIE_API_KEY = os.getenv("KIE_API_KEY", "f9dbdbefa5beb4b61912891e4c88f6dd")
+KIE_API_URL = os.getenv("KIE_API_URL", "https://api.kie.ai/api/v1/jobs/createTask")
+KIE_CALLBACK_URL = os.getenv("KIE_CALLBACK_URL", "")  # Set to your public URL + /api/kie_callback
+
 # Database Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./microlearning.db")
 

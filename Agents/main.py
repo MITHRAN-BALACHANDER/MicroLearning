@@ -172,6 +172,7 @@ Keep up the great work! 🌟
 **Commands:**
 
 🎥 `/video` - Get your next learning video
+   Request videos uploaded by your administrator
 
 📝 `/quiz` - Start a quiz on recent content
    After watching a video, test your understanding!
@@ -187,9 +188,9 @@ Keep up the great work! 🌟
 
 **How it works:**
 
-1. **Daily Videos** - Request a video with /video
+1. **Learning Videos** - Request a video with /video
 2. **Take Quizzes** - After watching, use /quiz
-3. **Ask Questions** - Use /ask for company info
+3. **Ask Questions** - Use /ask for company documents
 
 **Agents:**
 • Video Agent - Manages content delivery

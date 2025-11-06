@@ -1,4 +1,196 @@
-backend/uploads
-backend/node_modules
+# ============================================================
+# Python
+# ============================================================
+# Virtual Environments
+micro/
+venv/
+env/
+ENV/
+.venv/
 
-frontend/node_modules
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# ============================================================
+# Node.js / JavaScript
+# ============================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Dependency directories
+jspm_packages/
+
+# Build outputs
+dist/
+dist-ssr/
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ============================================================
+# Environment Variables & Secrets
+# ============================================================
+.env
+**/.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Keep example files
+!.env.example
+!**/.env.example
+
+# ============================================================
+# Database Files
+# ============================================================
+*.db
+*.sqlite
+*.sqlite3
+microlearning.db
+
+# ChromaDB
+Agents/data/chroma_db/
+
+# ============================================================
+# Logs
+# ============================================================
+logs/
+*.log
+Agents/logs/
+bot.log
+bot.*.log
+
+# ============================================================
+# Uploads & Media Files
+# ============================================================
+backend/uploads/
+Agents/data/videos/uploads/
+Agents/data/videos/compiled/
+Agents/data/videos/*.mp4
+Agents/data/videos/*.avi
+Agents/data/videos/*.mov
+
+# Keep sample/placeholder files if needed
+!**/sample.*
+!**/placeholder.*
+
+# ============================================================
+# OS Files
+# ============================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# IDE / Editor
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+
+# ============================================================
+# Redis
+# ============================================================
+dump.rdb
+*.rdb
+
+# ============================================================
+# Temporary Files
+# ============================================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*~.nib
+*.old
+
+# ============================================================
+# Documentation Build
+# ============================================================
+docs/_build/
+site/
+
+# ============================================================
+# Package Lock Files (Optional - Keep if team needs consistency)
+# ============================================================
+# Uncomment if you want to ignore lock files:
+# package-lock.json
+# yarn.lock
+
+# ============================================================
+# Test Files (Keep test scripts but ignore test outputs)
+# ============================================================
+test-results/
+coverage/

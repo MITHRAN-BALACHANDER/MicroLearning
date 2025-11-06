@@ -130,3 +130,26 @@ class UserSession(Base):
     started_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
+
+
+class VideoGenerationJob(Base):
+    """Track AI video generation jobs"""
+    __tablename__ = "video_generation_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    telegram_id = Column(String, nullable=True)
+    prompt = Column(Text, nullable=False)
+    task_id = Column(String, nullable=False, index=True)  # KIE.AI task ID
+    status = Column(String, default="pending")  # pending, processing, completed, failed
+    aspect_ratio = Column(String, default="16:9")
+    n_frames = Column(String, default="10")
+    video_url = Column(String, nullable=True)  # URL of generated video
+    video_file_path = Column(String, nullable=True)  # Local path after download
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    
+    # Metadata
+    duration = Column(Integer, nullable=True)  # Duration in seconds
+    file_size = Column(Integer, nullable=True)  # Size in bytes

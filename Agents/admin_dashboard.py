@@ -10,8 +10,9 @@ from sqlalchemy import func, Integer
 from werkzeug.utils import secure_filename
 
 from database.operations import SessionLocal
-from database.models import User, Video, VideoProgress, Question, QuizAttempt, Document
+from database.models import User, Video, VideoProgress, Question, QuizAttempt, Document, VideoGenerationJob
 from config.settings import ADMIN_USERNAME, ADMIN_PASSWORD
+from agents.text_to_video_agent import TextToVideoAgent
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your-secret-key-change-this')
@@ -52,6 +53,129 @@ def logout():
     session.clear()
     flash('Successfully logged out!', 'info')
     return redirect(url_for('login'))
+
+
+@app.route('/api/kie_callback', methods=['POST'])
+def kie_callback():
+    """
+    Callback endpoint for KIE.AI video generation completion
+    KIE.AI will POST here when video is ready
+    """
+    try:
+        import json as json_module
+        
+        # Get the callback data from KIE.AI
+        data = request.json
+        
+        # Log the full callback for debugging
+        from loguru import logger
+        logger.info(f"KIE.AI Callback received: {data}")
+        
+        # Expected format from KIE.AI docs:
+        # {
+        #   "code": 200,
+        #   "data": {
+        #     "state": "success" | "fail" | "processing",
+        #     "taskId": "xxxx",
+        #     "resultJson": "{\"resultUrls\":[\"https://....mp4\"]}"
+        #   }
+        # }
+        
+        if not data or 'data' not in data:
+            logger.error("Invalid callback data structure")
+            return jsonify({"error": "Invalid data structure"}), 400
+        
+        callback_data = data['data']
+        task_id = callback_data.get('taskId')
+        state = callback_data.get('state')
+        result_json_str = callback_data.get('resultJson', '{}')
+        
+        if not task_id:
+            logger.error("No taskId in callback data")
+            return jsonify({"error": "Missing taskId"}), 400
+        
+        logger.info(f"Processing callback for task {task_id}, state: {state}")
+        
+        # Parse resultJson to get video URL
+        video_url = None
+        if result_json_str and result_json_str != '{}':
+            try:
+                result_data = json_module.loads(result_json_str)
+                result_urls = result_data.get('resultUrls', [])
+                if result_urls:
+                    video_url = result_urls[0]
+                    logger.info(f"Extracted video URL: {video_url}")
+            except json_module.JSONDecodeError as e:
+                logger.error(f"Failed to parse resultJson: {e}")
+        
+        # Update database job status
+        db = SessionLocal()
+        try:
+            job = db.query(VideoGenerationJob).filter(
+                VideoGenerationJob.task_id == task_id
+            ).first()
+            
+            if not job:
+                logger.warning(f"Job not found for task_id: {task_id}")
+                return jsonify({"error": "Job not found"}), 404
+            
+            # Update based on state
+            if state == 'success' and video_url:
+                job.status = 'completed'
+                job.video_url = video_url
+                job.completed_at = datetime.utcnow()
+                logger.success(f"✅ Job {job.id} marked as completed with video URL")
+                
+                # Create a Video entry for Telegram bot to send
+                # Generate a title from the prompt
+                title = job.prompt[:100] if len(job.prompt) <= 100 else job.prompt[:97] + "..."
+                
+                # Create Video record
+                new_video = Video(
+                    title=title,
+                    description=f"AI Generated Video - {job.prompt}",
+                    file_id=video_url,  # Store URL as file_id for now
+                    file_path=video_url,  # Also store in file_path
+                    transcript=job.prompt,  # Use prompt as transcript
+                    concepts=f"AI Generated, Aspect: {job.aspect_ratio}, Frames: {job.n_frames}",
+                    difficulty_level=1,
+                    order_index=0,
+                    is_active=True
+                )
+                
+                db.add(new_video)
+                db.flush()  # Get the new video ID
+                
+                logger.success(f"✅ Created Video #{new_video.id} for Telegram bot: {title}")
+                
+            elif state == 'fail':
+                job.status = 'failed'
+                job.error_message = callback_data.get('error', 'Video generation failed')
+                logger.error(f"❌ Job {job.id} marked as failed")
+            elif state == 'processing':
+                job.status = 'processing'
+                logger.info(f"⏳ Job {job.id} still processing")
+            
+            db.commit()
+            
+            return jsonify({
+                "ok": True,
+                "job_id": job.id,
+                "status": job.status,
+                "message": "Callback processed successfully"
+            }), 200
+            
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Database error: {str(e)}")
+            return jsonify({"error": str(e)}), 500
+        finally:
+            db.close()
+            
+    except Exception as e:
+        from loguru import logger
+        logger.error(f"Callback error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/')
@@ -557,6 +681,234 @@ def api_stats():
         return jsonify(stats)
     finally:
         db.close()
+
+
+@app.route('/generate-video', methods=['GET', 'POST'])
+@login_required
+def generate_video():
+    """Video generation page"""
+    if request.method == 'POST':
+        prompt = request.form.get('prompt')
+        aspect_ratio = request.form.get('aspect_ratio', '16:9')
+        n_frames = request.form.get('n_frames', '30')  # Keep as string
+        
+        if not prompt:
+            flash('Please provide a prompt!', 'error')
+            return render_template('generate_video.html')
+        
+        try:
+            # Initialize video generation agent
+            video_agent = TextToVideoAgent()
+            
+            # Get callback URL from settings
+            from config.settings import KIE_CALLBACK_URL
+            callback_url = KIE_CALLBACK_URL or None
+            
+            # Create generation task with callback
+            result = video_agent.create_video_generation_task(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                n_frames=n_frames,
+                callback_url=callback_url
+            )
+            
+            if result['success']:
+                # Extract task ID from KIE.AI response
+                task_data = result['data']
+                # KIE.AI returns: {'code': 200, 'data': {'taskId': '...'}}
+                if isinstance(task_data, dict) and 'data' in task_data:
+                    inner_data = task_data['data']
+                    task_id = inner_data.get('taskId') or inner_data.get('task_id') or inner_data.get('id')
+                else:
+                    task_id = task_data.get('taskId') or task_data.get('task_id') or task_data.get('id')
+                
+                if task_id:
+                    # Save to database
+                    job = video_agent.save_generation_job(
+                        prompt=prompt,
+                        task_id=str(task_id),
+                        aspect_ratio=aspect_ratio,
+                        n_frames=n_frames
+                    )
+                    
+                    # Check if AJAX request
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify({
+                            'success': True,
+                            'job_id': job.id,
+                            'task_id': task_id
+                        })
+                    
+                    flash(f'Video generation started! Task ID: {task_id}', 'success')
+                else:
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify({'success': False, 'error': 'No task ID returned'})
+                    flash('Video generation started but no task ID returned', 'warning')
+            else:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'error': result.get("error", "Unknown error")})
+                flash(f'Error: {result.get("error", "Unknown error")}', 'error')
+                
+        except Exception as e:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': str(e)})
+            flash(f'Error generating video: {str(e)}', 'error')
+    
+    # Get recent generation jobs
+    db = SessionLocal()
+    try:
+        jobs = db.query(VideoGenerationJob).order_by(
+            VideoGenerationJob.created_at.desc()
+        ).limit(20).all()
+        return render_template('generate_video.html', jobs=jobs)
+    finally:
+        db.close()
+
+
+@app.route('/generation-jobs')
+@login_required
+def generation_jobs():
+    """List all video generation jobs"""
+    db = SessionLocal()
+    try:
+        jobs = db.query(VideoGenerationJob).order_by(
+            VideoGenerationJob.created_at.desc()
+        ).all()
+        
+        # Count by status
+        status_counts = {
+            'pending': db.query(VideoGenerationJob).filter(VideoGenerationJob.status == 'pending').count(),
+            'processing': db.query(VideoGenerationJob).filter(VideoGenerationJob.status == 'processing').count(),
+            'completed': db.query(VideoGenerationJob).filter(VideoGenerationJob.status == 'completed').count(),
+            'failed': db.query(VideoGenerationJob).filter(VideoGenerationJob.status == 'failed').count(),
+        }
+        
+        return render_template('generation_jobs.html', jobs=jobs, status_counts=status_counts)
+    finally:
+        db.close()
+
+
+@app.route('/generation-jobs/<int:job_id>')
+@login_required
+def generation_job_detail(job_id):
+    """View details of a specific generation job"""
+    db = SessionLocal()
+    try:
+        job = db.query(VideoGenerationJob).filter(VideoGenerationJob.id == job_id).first()
+        if not job:
+            flash('Job not found!', 'error')
+            return redirect(url_for('generation_jobs'))
+        
+        return render_template('generation_job_detail.html', job=job)
+    finally:
+        db.close()
+
+
+@app.route('/generation-jobs/<int:job_id>/check-status', methods=['POST'])
+@login_required
+def check_generation_status(job_id):
+    """Check status of a generation job"""
+    db = SessionLocal()
+    try:
+        job = db.query(VideoGenerationJob).filter(VideoGenerationJob.id == job_id).first()
+        if not job:
+            return jsonify({'success': False, 'error': 'Job not found'})
+        
+        # Check status with API
+        video_agent = TextToVideoAgent()
+        result = video_agent.check_task_status(job.task_id)
+        
+        if result['success']:
+            task_data = result['data']
+            status = task_data.get('status', 'unknown')
+            
+            # Update job status
+            if status == 'completed' and task_data.get('video_url'):
+                video_agent.update_job_status(
+                    job_id=job_id,
+                    status='completed',
+                    video_url=task_data.get('video_url')
+                )
+            elif status == 'failed':
+                video_agent.update_job_status(
+                    job_id=job_id,
+                    status='failed',
+                    error_message=task_data.get('error', 'Unknown error')
+                )
+            elif status in ['processing', 'pending']:
+                video_agent.update_job_status(
+                    job_id=job_id,
+                    status=status
+                )
+            
+            return jsonify({'success': True, 'data': task_data})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')})
+            
+    finally:
+        db.close()
+
+
+@app.route('/generation-jobs/<int:job_id>/update-url', methods=['POST'])
+@login_required
+def update_generation_url(job_id):
+    """Manually update video URL for a generation job"""
+    db = SessionLocal()
+    try:
+        job = db.query(VideoGenerationJob).filter(VideoGenerationJob.id == job_id).first()
+        if not job:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'Job not found'})
+            flash('Job not found!', 'error')
+            return redirect(url_for('generate_video'))
+        
+        video_url = request.form.get('video_url') or request.json.get('video_url') if request.is_json else None
+        
+        if not video_url:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'Video URL is required'})
+            flash('Video URL is required!', 'error')
+            return redirect(url_for('generate_video'))
+        
+        # Update job with video URL
+        job.status = 'completed'
+        job.video_url = video_url
+        job.completed_at = datetime.utcnow()
+        db.commit()
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': 'Video URL updated successfully'})
+        
+        flash(f'Video URL updated successfully for Task ID: {job.task_id}', 'success')
+        return redirect(url_for('generate_video'))
+        
+    except Exception as e:
+        db.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': str(e)})
+        flash(f'Error updating video URL: {str(e)}', 'error')
+        return redirect(url_for('generate_video'))
+    finally:
+        db.close()
+
+
+@app.route('/generation-jobs/<int:job_id>/delete', methods=['POST'])
+@login_required
+def delete_generation_job(job_id):
+    """Delete a generation job"""
+    db = SessionLocal()
+    try:
+        job = db.query(VideoGenerationJob).filter(VideoGenerationJob.id == job_id).first()
+        if job:
+            db.delete(job)
+            db.commit()
+            flash('Generation job deleted successfully!', 'success')
+        else:
+            flash('Job not found!', 'error')
+    finally:
+        db.close()
+    
+    return redirect(url_for('generation_jobs'))
 
 
 if __name__ == '__main__':
