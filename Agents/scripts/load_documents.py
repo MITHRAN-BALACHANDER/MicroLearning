@@ -18,10 +18,14 @@ async def load_document_file(file_path: Path, doc_type: str, rag_agent: RAGAgent
     """Load a single document file"""
     try:
         logger.info(f"Loading document: {file_path.name}")
+        print(f"  📄 Processing: {file_path.name}")
         
         # Read file content
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
+        
+        content_length = len(content)
+        print(f"     📊 Size: {content_length:,} characters")
         
         # Add to database
         doc = add_document(
@@ -30,6 +34,8 @@ async def load_document_file(file_path: Path, doc_type: str, rag_agent: RAGAgent
             file_path=str(file_path),
             content=content
         )
+        
+        print(f"     💾 Database ID: {doc.id}")
         
         # Index in vector database
         result = await rag_agent.index_document(
@@ -40,15 +46,19 @@ async def load_document_file(file_path: Path, doc_type: str, rag_agent: RAGAgent
         )
         
         if result["success"]:
-            logger.success(f"Loaded: {doc.title}")
-            return True
+            chunks = result.get("chunks", 0)
+            print(f"     ✅ Indexed: {chunks} chunks created")
+            logger.success(f"Loaded: {doc.title} ({chunks} chunks)")
+            return True, chunks
         else:
+            print(f"     ❌ Failed to index")
             logger.error(f"Failed to index: {doc.title}")
-            return False
+            return False, 0
             
     except Exception as e:
+        print(f"     ❌ Error: {str(e)}")
         logger.error(f"Error loading {file_path}: {str(e)}")
-        return False
+        return False, 0
 
 
 async def load_documents_from_directory(directory: Path, rag_agent: RAGAgent):
@@ -56,9 +66,9 @@ async def load_documents_from_directory(directory: Path, rag_agent: RAGAgent):
     
     # Document type mapping
     type_mapping = {
-        'manual': ['manual', 'guide', 'handbook'],
-        'sop': ['sop', 'procedure', 'process'],
-        'policy': ['policy', 'rule', 'regulation']
+        'manual': ['manual', 'guide', 'handbook', 'employee'],
+        'sop': ['sop', 'procedure', 'process', 'support'],
+        'policy': ['policy', 'rule', 'regulation', 'work']
     }
     
     # Find all text files
@@ -66,12 +76,18 @@ async def load_documents_from_directory(directory: Path, rag_agent: RAGAgent):
     
     if not text_files:
         logger.warning(f"No .txt or .md files found in {directory}")
+        print(f"⚠️  No .txt or .md files found in {directory}")
         return
     
     logger.info(f"Found {len(text_files)} documents to load")
+    print(f"📚 Found {len(text_files)} document(s) to process\n")
     
     success_count = 0
-    for file_path in text_files:
+    total_chunks = 0
+    
+    for idx, file_path in enumerate(text_files, 1):
+        print(f"[{idx}/{len(text_files)}]")
+        
         # Determine document type from filename
         filename_lower = file_path.name.lower()
         doc_type = 'manual'  # default
@@ -81,29 +97,43 @@ async def load_documents_from_directory(directory: Path, rag_agent: RAGAgent):
                 doc_type = dtype
                 break
         
-        success = await load_document_file(file_path, doc_type, rag_agent)
+        print(f"     📂 Type: {doc_type}")
+        
+        success, chunks = await load_document_file(file_path, doc_type, rag_agent)
         if success:
             success_count += 1
+            total_chunks += chunks
+        
+        print()  # Empty line between files
     
-    logger.success(f"Loaded {success_count}/{len(text_files)} documents successfully")
+    print("=" * 60)
+    print(f"✅ Successfully loaded: {success_count}/{len(text_files)} documents")
+    print(f"📊 Total chunks created: {total_chunks}")
+    logger.success(f"Loaded {success_count}/{len(text_files)} documents successfully ({total_chunks} chunks)")
 
 
 async def main():
     """Main function"""
     parser = argparse.ArgumentParser(description='Load documents into RAG system')
-    parser.add_argument('--path', type=str, default='./data/documents',
+    parser.add_argument('--path', type=str, default='../data/documents',
                        help='Path to documents directory')
     
     args = parser.parse_args()
-    doc_path = Path(args.path)
+    
+    # Resolve path relative to script location
+    script_dir = Path(__file__).parent
+    doc_path = (script_dir / args.path).resolve()
     
     if not doc_path.exists():
         logger.error(f"Directory not found: {doc_path}")
-        print(f"❌ Directory not found: {doc_path}")
+        print(f"\n❌ Directory not found: {doc_path}")
         print("\nCreate the directory and add your company documents:")
-        print(f"  mkdir -p {doc_path}")
+        print(f"  mkdir {doc_path}")
         print(f"  # Add .txt or .md files to {doc_path}")
         return
+    
+    print(f"\n📂 Loading documents from: {doc_path}")
+    print(f"📍 Absolute path: {doc_path.absolute()}\n")
     
     try:
         # Initialize database
@@ -122,12 +152,25 @@ async def main():
         
         # Show statistics
         stats = rag_agent.get_collection_stats()
-        print(f"\n✅ Document loading completed!")
-        print(f"Total chunks indexed: {stats['total_chunks']}")
+        print("\n" + "=" * 60)
+        print("📊 FINAL STATISTICS")
+        print("=" * 60)
+        print(f"✅ Total chunks in database: {stats.get('total_chunks', 0)}")
+        print(f"✅ Status: {stats.get('status', 'unknown')}")
+        print(f"✅ Vector database: ChromaDB")
+        print(f"✅ Collection: company_docs")
+        print("=" * 60)
+        print("\n🎉 Document loading completed successfully!")
+        print("\n💡 You can now use the RAG agent to query these documents:")
+        print("   - Start the bot: python main.py")
+        print("   - Use /ask command to query documents")
+        print("   - Example: /ask What is the remote work policy?\n")
         
     except Exception as e:
         logger.error(f"Failed to load documents: {str(e)}")
-        print(f"❌ Error: {str(e)}")
+        print(f"\n❌ Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
