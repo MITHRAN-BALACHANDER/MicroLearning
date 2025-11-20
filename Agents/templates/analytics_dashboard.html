@@ -1,0 +1,898 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics Dashboard - MicroLearning Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* shadcn-inspired black & white theme */
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 0 0% 3.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 0 0% 3.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 0 0% 3.9%;
+        --primary: 0 0% 9%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 0 0% 96.1%;
+        --secondary-foreground: 0 0% 9%;
+        --muted: 0 0% 96.1%;
+        --muted-foreground: 0 0% 45.1%;
+        --accent: 0 0% 96.1%;
+        --accent-foreground: 0 0% 9%;
+        --border: 0 0% 89.8%;
+        --input: 0 0% 89.8%;
+        --ring: 0 0% 3.9%;
+    }
+    
+    * {
+        border-color: hsl(var(--border));
+    }
+    
+    body {
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+    }
+    
+    .widget {
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .widget:hover {
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .kpi-card {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: hsl(var(--foreground));
+    }
+    
+    .trend-up, .trend-down {
+        color: hsl(var(--foreground));
+        font-weight: 600;
+    }
+    
+    .stat-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: 1px solid hsl(var(--border));
+    }
+    
+    .badge-primary {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        border-color: hsl(var(--primary));
+    }
+    
+    .badge-secondary {
+        background: hsl(var(--secondary));
+        color: hsl(var(--secondary-foreground));
+        border-color: hsl(var(--border));
+    }
+    
+    .badge-muted {
+        background: hsl(var(--muted));
+        color: hsl(var(--muted-foreground));
+        border-color: hsl(var(--border));
+    }
+    
+    .loader {
+        border: 2px solid hsl(var(--muted));
+        border-top: 2px solid hsl(var(--foreground));
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .refresh-indicator {
+        display: none;
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+    }
+    
+    .refresh-indicator.active {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .grid-dashboard {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+    
+    .filter-bar {
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        border-radius: 0.375rem;
+        border: 1px solid hsl(var(--primary));
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .btn-primary:hover {
+        opacity: 0.9;
+    }
+    
+    .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: hsl(var(--secondary));
+        color: hsl(var(--secondary-foreground));
+        border-radius: 0.375rem;
+        border: 1px solid hsl(var(--border));
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .btn-secondary:hover {
+        background: hsl(var(--accent));
+    }
+    
+    .btn-ghost {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: transparent;
+        color: hsl(var(--foreground));
+        border-radius: 0.375rem;
+        border: 1px solid transparent;
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .btn-ghost:hover {
+        background: hsl(var(--accent));
+        border-color: hsl(var(--border));
+    }
+    
+    .drill-down-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .drill-down-table th {
+        background: hsl(var(--muted));
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.875rem;
+        border-bottom: 1px solid hsl(var(--border));
+        color: hsl(var(--foreground));
+    }
+    
+    .drill-down-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid hsl(var(--border));
+        font-size: 0.875rem;
+        color: hsl(var(--foreground));
+    }
+    
+    .drill-down-table tr:hover {
+        background: hsl(var(--muted) / 0.5);
+    }
+    
+    .group-header {
+        background: hsl(var(--muted));
+        padding: 0.875rem 1rem;
+        font-weight: 600;
+        font-size: 0.9375rem;
+        border-top: 1px solid hsl(var(--border));
+        border-bottom: 1px solid hsl(var(--border));
+        color: hsl(var(--foreground));
+    }
+    
+    .role-badge {
+        display: inline-block;
+        padding: 0.125rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+    
+    .role-learner {
+        background: hsl(var(--secondary));
+        color: hsl(var(--secondary-foreground));
+        border: 1px solid hsl(var(--border));
+    }
+    
+    .role-instructor {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .role-admin {
+        background: hsl(var(--foreground));
+        color: hsl(var(--background));
+    }
+    
+    select, input {
+        background: hsl(var(--background));
+        border: 1px solid hsl(var(--border));
+        color: hsl(var(--foreground));
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+    }
+    
+    select:focus, input:focus {
+        outline: none;
+        border-color: hsl(var(--ring));
+        box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1);
+    }
+    
+    select:hover, input:hover {
+        border-color: hsl(var(--foreground) / 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
+            <p class="text-sm mt-1" style="color: hsl(var(--muted-foreground))">Real-time insights and performance metrics</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="refreshDashboard()" class="btn-ghost">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh
+            </button>
+            <button onclick="toggleAutoRefresh()" id="autoRefreshBtn" class="btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Auto: <span id="autoRefreshStatus">ON</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Refresh Indicator -->
+    <div id="refreshIndicator" class="refresh-indicator">
+        <div class="loader"></div>
+        <span>Updating data...</span>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filter-bar">
+        <div class="flex flex-wrap gap-4 items-center">
+            <div>
+                <label class="text-sm font-medium mr-2">Time Range</label>
+                <select id="timeRange" onchange="applyFilters()">
+                    <option value="7">Last 7 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="365">Last year</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-sm font-medium mr-2">User Role</label>
+                <select id="roleFilter" onchange="applyFilters()">
+                    <option value="all">All Roles</option>
+                    <option value="learner">Learners</option>
+                    <option value="instructor">Instructors</option>
+                    <option value="admin">Admins</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-sm font-medium mr-2">Video Category</label>
+                <select id="categoryFilter" onchange="applyFilters()">
+                    <option value="all">All Categories</option>
+                    <option value="general">General</option>
+                    <option value="technical">Technical</option>
+                    <option value="business">Business</option>
+                    <option value="onboarding">Onboarding</option>
+                </select>
+            </div>
+            <div class="ml-auto">
+                <button onclick="exportData('users')" class="btn-primary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Export
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- KPI Cards -->
+    <div id="kpiSection">
+        <h2 class="text-xl font-semibold mb-4">Key Performance Indicators</h2>
+        <div class="grid-dashboard mb-8">
+            <!-- User KPIs -->
+            <div class="widget kpi-card">
+                <div class="flex justify-between items-start mb-3">
+                    <h3 class="text-sm font-medium" style="color: hsl(var(--muted-foreground))">Total Users</h3>
+                    <span class="stat-badge badge-secondary">Users</span>
+                </div>
+                <p class="text-3xl font-bold mb-2">{{ kpis.users.total }}</p>
+                <div class="flex items-center text-sm mb-2">
+                    <span class="trend-up mr-2">↑ {{ kpis.users.new_this_week }}</span>
+                    <span style="color: hsl(var(--muted-foreground))">new this week</span>
+                </div>
+                <div class="mt-3 text-sm" style="color: hsl(var(--muted-foreground))">
+                    Active: <strong>{{ kpis.users.active }}</strong> | 
+                    Today: <strong>{{ kpis.users.active_today }}</strong>
+                </div>
+            </div>
+            
+            <!-- Content KPIs -->
+            <div class="widget kpi-card">
+                <div class="flex justify-between items-start mb-3">
+                    <h3 class="text-sm font-medium" style="color: hsl(var(--muted-foreground))">Total Videos</h3>
+                    <span class="stat-badge badge-primary">Content</span>
+                </div>
+                <p class="text-3xl font-bold mb-2">{{ kpis.content.total_videos }}</p>
+                <div class="text-sm mb-3" style="color: hsl(var(--muted-foreground))">
+                    Active: <strong>{{ kpis.content.active_videos }}</strong>
+                </div>
+                <div class="text-sm" style="color: hsl(var(--muted-foreground))">
+                    Questions: <strong>{{ kpis.content.total_questions }}</strong> | 
+                    Avg per video: <strong>{{ kpis.content.avg_questions_per_video }}</strong>
+                </div>
+            </div>
+            
+            <!-- Engagement KPIs -->
+            <div class="widget kpi-card">
+                <div class="flex justify-between items-start mb-3">
+                    <h3 class="text-sm font-medium" style="color: hsl(var(--muted-foreground))">Video Completion Rate</h3>
+                    <span class="stat-badge badge-secondary">Engagement</span>
+                </div>
+                <p class="text-3xl font-bold mb-2">{{ kpis.engagement.completion_rate }}%</p>
+                <div class="text-sm mb-3" style="color: hsl(var(--muted-foreground))">
+                    {{ kpis.engagement.completed_videos }} / {{ kpis.engagement.total_views }} views
+                </div>
+                <div class="text-sm" style="color: hsl(var(--muted-foreground))">
+                    Quiz attempts: <strong>{{ kpis.engagement.total_quiz_attempts }}</strong>
+                </div>
+            </div>
+            
+            <!-- Quiz Performance KPIs -->
+            <div class="widget kpi-card">
+                <div class="flex justify-between items-start mb-3">
+                    <h3 class="text-sm font-medium" style="color: hsl(var(--muted-foreground))">Average Quiz Score</h3>
+                    <span class="stat-badge badge-muted">Performance</span>
+                </div>
+                <p class="text-3xl font-bold mb-2">{{ kpis.engagement.avg_quiz_score }}/10</p>
+                <div class="text-sm mb-3" style="color: hsl(var(--muted-foreground))">
+                    This week: <strong>{{ kpis.engagement.quiz_attempts_week }}</strong> attempts
+                </div>
+                <div class="text-sm" style="color: hsl(var(--muted-foreground))">
+                    Active sessions: <strong>{{ kpis.engagement.active_sessions }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- User Growth Chart -->
+        <div class="widget">
+            <h3 class="text-lg font-semibold mb-4">User Growth Trend</h3>
+            <div class="chart-container">
+                <canvas id="userGrowthChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Engagement Trends Chart -->
+        <div class="widget">
+            <h3 class="text-lg font-semibold mb-4">Daily Engagement</h3>
+            <div class="chart-container">
+                <canvas id="engagementChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- User Activity Breakdown -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="widget">
+            <h3 class="text-lg font-semibold mb-4">User Activity Distribution</h3>
+            <div class="chart-container">
+                <canvas id="activityPieChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Content Distribution -->
+        <div class="widget">
+            <h3 class="text-lg font-semibold mb-4">Content by Difficulty</h3>
+            <div class="chart-container">
+                <canvas id="contentDistChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Users Table -->
+    <div class="widget mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Top Performers</h3>
+            <button onclick="loadTopUsers(20)" class="text-sm text-blue-600 hover:text-blue-700">View All</button>
+        </div>
+        <div id="topUsersTable" class="overflow-x-auto">
+            <div class="flex justify-center py-8">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Video Performance Table -->
+    <div class="widget mb-8">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Video Performance</h3>
+            <button onclick="exportData('videos')" class="text-sm text-blue-600 hover:text-blue-700">Export</button>
+        </div>
+        <div id="videoPerformanceTable" class="overflow-x-auto">
+            <div class="flex justify-center py-8">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- System Health -->
+    <div class="widget">
+        <h3 class="text-lg font-semibold mb-4">System Health</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="text-center">
+                <p class="text-sm text-neutral-600 mb-1">Database Records</p>
+                <p class="text-2xl font-bold text-neutral-900">{{ system_health.database.total_records }}</p>
+                <span class="stat-badge badge-success mt-2">{{ system_health.database.status }}</span>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-neutral-600 mb-1">Active Content</p>
+                <p class="text-2xl font-bold text-neutral-900">{{ system_health.content.active_percentage }}%</p>
+                <p class="text-xs text-neutral-600 mt-1">{{ system_health.content.active }} / {{ system_health.content.active + system_health.content.inactive }}</p>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-neutral-600 mb-1">Active Sessions</p>
+                <p class="text-2xl font-bold text-neutral-900">{{ system_health.sessions.active }}</p>
+                <p class="text-xs text-neutral-600 mt-1">{{ system_health.sessions.total_today }} today</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let autoRefreshEnabled = true;
+    let refreshInterval;
+    let charts = {};
+    
+    // Initialize dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeCharts();
+        loadTopUsers(10);
+        loadVideoPerformance();
+        startAutoRefresh();
+    });
+    
+    // Initialize all charts
+    function initializeCharts() {
+        // User Growth Chart
+        fetchData('/api/analytics/user-growth?days=30').then(data => {
+            const ctx = document.getElementById('userGrowthChart').getContext('2d');
+            charts.userGrowth = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [{
+                        label: 'Total Users',
+                        data: data.map(d => d.total_users),
+                        borderColor: 'hsl(0, 0%, 9%)',
+                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'hsl(0, 0%, 89.8%)'
+                            },
+                            ticks: {
+                                color: 'hsl(0, 0%, 45.1%)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'hsl(0, 0%, 89.8%)'
+                            },
+                            ticks: {
+                                color: 'hsl(0, 0%, 45.1%)'
+                            }
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Engagement Trends Chart
+        fetchData('/api/analytics/engagement-trends?days=30').then(data => {
+            const ctx = document.getElementById('engagementChart').getContext('2d');
+            charts.engagement = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [
+                        {
+                            label: 'Video Views',
+                            data: data.video_views,
+                            borderColor: 'hsl(0, 0%, 9%)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                            tension: 0.4,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Quiz Attempts',
+                            data: data.quiz_attempts,
+                            borderColor: 'hsl(0, 0%, 50%)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                            tension: 0.4,
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: 'hsl(0, 0%, 3.9%)',
+                                usePointStyle: true
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'hsl(0, 0%, 89.8%)'
+                            },
+                            ticks: {
+                                color: 'hsl(0, 0%, 45.1%)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'hsl(0, 0%, 89.8%)'
+                            },
+                            ticks: {
+                                color: 'hsl(0, 0%, 45.1%)'
+                            }
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Activity Pie Chart
+        fetchData('/api/analytics/user-activity').then(data => {
+            const ctx = document.getElementById('activityPieChart').getContext('2d');
+            const grayscale = ['hsl(0, 0%, 9%)', 'hsl(0, 0%, 30%)', 'hsl(0, 0%, 60%)', 'hsl(0, 0%, 85%)'];
+            charts.activity = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.segments.map(s => s.label),
+                    datasets: [{
+                        data: data.segments.map(s => s.value),
+                        backgroundColor: grayscale,
+                        borderColor: 'hsl(0, 0%, 100%)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: 'hsl(0, 0%, 3.9%)',
+                                usePointStyle: true
+                            }
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Content Distribution Chart
+        const contentData = {{ content_distribution.videos_by_difficulty | tojson }};
+        const ctx4 = document.getElementById('contentDistChart').getContext('2d');
+        charts.contentDist = new Chart(ctx4, {
+            type: 'bar',
+            data: {
+                labels: contentData.map(d => `Level ${d.level}`),
+                datasets: [{
+                    label: 'Videos',
+                    data: contentData.map(d => d.count),
+                    backgroundColor: 'hsl(0, 0%, 9%)',
+                    borderColor: 'hsl(0, 0%, 0%)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            color: 'hsl(0, 0%, 45.1%)'
+                        },
+                        grid: {
+                            color: 'hsl(0, 0%, 89.8%)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: 'hsl(0, 0%, 45.1%)'
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Load top users with role grouping
+    function loadTopUsers(limit = 10) {
+        const roleFilter = document.getElementById('roleFilter')?.value || 'all';
+        fetchData(`/api/analytics/top-users?limit=${limit}&role=${roleFilter}`).then(users => {
+            // Group users by role
+            const grouped = users.reduce((acc, user) => {
+                const role = user.role || 'learner';
+                if (!acc[role]) acc[role] = [];
+                acc[role].push(user);
+                return acc;
+            }, {});
+            
+            let html = '<table class="drill-down-table"><thead><tr><th>Rank</th><th>Username</th><th>Role</th><th>Completed Videos</th><th>Avg Quiz Score</th><th>Member Since</th><th>Actions</th></tr></thead><tbody>';
+            
+            let rank = 1;
+            const roleOrder = ['admin', 'instructor', 'learner'];
+            
+            roleOrder.forEach(role => {
+                if (grouped[role]) {
+                    html += `<tr class="group-header"><td colspan="7"><strong>${role.charAt(0).toUpperCase() + role.slice(1)}s</strong> (${grouped[role].length})</td></tr>`;
+                    grouped[role].forEach(user => {
+                        html += `
+                            <tr>
+                                <td><strong>${rank++}</strong></td>
+                                <td>${user.username}</td>
+                                <td><span class="role-badge role-${user.role}">${user.role}</span></td>
+                                <td>${user.completed_videos}</td>
+                                <td><span class="stat-badge badge-secondary">${user.avg_quiz_score}/10</span></td>
+                                <td>${user.member_since}</td>
+                                <td><button onclick="viewUserDetail(${user.user_id})" class="btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">View</button></td>
+                            </tr>
+                        `;
+                    });
+                }
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('topUsersTable').innerHTML = html;
+        });
+    }
+    
+    // Load video performance with category grouping
+    function loadVideoPerformance() {
+        const categoryFilter = document.getElementById('categoryFilter')?.value || 'all';
+        fetchData(`/api/analytics/video-performance?category=${categoryFilter}`).then(videos => {
+            // Group videos by category
+            const grouped = videos.reduce((acc, video) => {
+                const category = video.category || 'general';
+                if (!acc[category]) acc[category] = [];
+                acc[category].push(video);
+                return acc;
+            }, {});
+            
+            let html = '<table class="drill-down-table"><thead><tr><th>Video Title</th><th>Category</th><th>Views</th><th>Completions</th><th>Completion Rate</th><th>Avg Rating</th><th>Questions</th><th>Actions</th></tr></thead><tbody>';
+            
+            const categories = ['onboarding', 'technical', 'business', 'general'];
+            
+            categories.forEach(category => {
+                if (grouped[category]) {
+                    html += `<tr class="group-header"><td colspan="8"><strong>${category.charAt(0).toUpperCase() + category.slice(1)}</strong> (${grouped[category].length} videos)</td></tr>`;
+                    grouped[category].forEach(video => {
+                        html += `
+                            <tr>
+                                <td><strong>${video.title}</strong></td>
+                                <td><span class="role-badge role-learner">${video.category}</span></td>
+                                <td>${video.views}</td>
+                                <td>${video.completions}</td>
+                                <td><span class="stat-badge ${video.completion_rate > 70 ? 'badge-primary' : 'badge-secondary'}">${video.completion_rate}%</span></td>
+                                <td><span class="stat-badge badge-muted">${video.avg_rating}/10</span></td>
+                                <td>${video.questions}</td>
+                                <td><button onclick="viewVideoDetail(${video.video_id})" class="btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">View</button></td>
+                            </tr>
+                        `;
+                    });
+                }
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('videoPerformanceTable').innerHTML = html;
+        });
+    }
+    
+    // Refresh dashboard
+    function refreshDashboard() {
+        const indicator = document.getElementById('refreshIndicator');
+        indicator.classList.add('active');
+        
+        Promise.all([
+            fetchData('/api/analytics/kpis'),
+            fetchData('/api/analytics/user-growth?days=' + document.getElementById('timeRange').value),
+            fetchData('/api/analytics/engagement-trends?days=' + document.getElementById('timeRange').value)
+        ]).then(() => {
+            setTimeout(() => {
+                indicator.classList.remove('active');
+                location.reload(); // Simple reload for now
+            }, 1000);
+        });
+    }
+    
+    // Toggle auto-refresh
+    function toggleAutoRefresh() {
+        autoRefreshEnabled = !autoRefreshEnabled;
+        document.getElementById('autoRefreshStatus').textContent = autoRefreshEnabled ? 'ON' : 'OFF';
+        
+        if (autoRefreshEnabled) {
+            startAutoRefresh();
+        } else {
+            clearInterval(refreshInterval);
+        }
+    }
+    
+    // Start auto-refresh
+    function startAutoRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(() => {
+            if (autoRefreshEnabled) {
+                refreshDashboard();
+            }
+        }, 60000); // Refresh every 60 seconds
+    }
+    
+    // Apply filters
+    function applyFilters() {
+        const days = document.getElementById('timeRange').value;
+        
+        // Update user growth chart
+        fetchData(`/api/analytics/user-growth?days=${days}`).then(data => {
+            charts.userGrowth.data.labels = data.map(d => d.date);
+            charts.userGrowth.data.datasets[0].data = data.map(d => d.total_users);
+            charts.userGrowth.update();
+        });
+        
+        // Update engagement chart
+        fetchData(`/api/analytics/engagement-trends?days=${days}`).then(data => {
+            charts.engagement.data.labels = data.dates;
+            charts.engagement.data.datasets[0].data = data.video_views;
+            charts.engagement.data.datasets[1].data = data.quiz_attempts;
+            charts.engagement.update();
+        });
+        
+        // Reload tables with filters
+        loadTopUsers(10);
+        loadVideoPerformance();
+    }
+    
+    // Export data
+    function exportData(type) {
+        const days = document.getElementById('timeRange').value;
+        window.location.href = `/api/analytics/export/${type}?days=${days}&active_only=true`;
+    }
+    
+    // View user detail
+    function viewUserDetail(userId) {
+        window.location.href = `/users/${userId}`;
+    }
+    
+    // View video detail
+    function viewVideoDetail(videoId) {
+        window.location.href = `/videos/${videoId}/edit`;
+    }
+    
+    // Switch data view
+    function switchDataView() {
+        const view = document.getElementById('dataView').value;
+        // Implement view switching logic
+        console.log('Switching to view:', view);
+    }
+    
+    // Fetch helper
+    async function fetchData(url) {
+        const response = await fetch(url);
+        return await response.json();
+    }
+</script>
+{% endblock %}

@@ -18,6 +18,7 @@ class User(Base):
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
+    role = Column(String, default='learner')  # learner, instructor, admin
     created_at = Column(DateTime, default=datetime.utcnow)
     last_active = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
@@ -39,6 +40,7 @@ class Video(Base):
     duration = Column(Integer, nullable=True)  # Duration in seconds
     transcript = Column(Text, nullable=True)
     concepts = Column(Text, nullable=True)  # JSON string of key concepts
+    category = Column(String, default='general')  # general, technical, business, onboarding
     difficulty_level = Column(Integer, default=1)  # 1-5
     order_index = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)

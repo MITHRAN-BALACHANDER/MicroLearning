@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}Videos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .category-tile {
+        background: hsl(var(--card));
+        border: 2px solid hsl(var(--border));
+        border-radius: 0.75rem;
+        padding: 2rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .category-tile:hover {
+        border-color: hsl(var(--primary));
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+        transform: translateY(-4px);
+    }
+    
+    .category-tile.active {
+        border-color: hsl(var(--primary));
+        background: hsl(var(--secondary));
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    
+    .category-icon {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        font-size: 2rem;
+    }
+    
+    .category-onboarding .category-icon {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .category-technical .category-icon {
+        background: hsl(0, 0%, 25%);
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .category-business .category-icon {
+        background: hsl(0, 0%, 40%);
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .category-general .category-icon {
+        background: hsl(var(--secondary));
+        color: hsl(var(--foreground));
+        border: 2px solid hsl(var(--border));
+    }
+    
+    .videos-grid {
+        display: none;
+        margin-top: 2rem;
+        animation: slideDown 0.4s ease;
+    }
+    
+    .videos-grid.show {
+        display: block;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .video-card {
+        background: hsl(var(--card));
+        border: 1px solid hsl(var(--border));
+        border-radius: 0.5rem;
+        padding: 1.25rem;
+        transition: all 0.2s ease;
+    }
+    
+    .video-card:hover {
+        border-color: hsl(var(--primary));
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    
+    .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        transition: all 0.2s;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+    }
+    
+    .btn-primary {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        border: none;
+    }
+    
+    .btn-primary:hover {
+        background: hsl(0, 0%, 0%);
+    }
+    
+    .btn-secondary {
+        background: hsl(var(--card));
+        color: hsl(var(--foreground));
+        border: 1px solid hsl(var(--border));
+    }
+    
+    .btn-secondary:hover {
+        background: hsl(var(--muted));
+    }
+    
+    .btn-sm {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+    
+    .badge {
+        padding: 0.25rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 0.375rem;
+        text-transform: capitalize;
+    }
+    
+    .badge-onboarding {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .badge-technical {
+        background: hsl(0, 0%, 25%);
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .badge-business {
+        background: hsl(0, 0%, 40%);
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .badge-general {
+        background: hsl(var(--secondary));
+        color: hsl(var(--foreground));
+        border: 1px solid hsl(var(--border));
+    }
+    
+    .badge-active {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+    }
+    
+    .badge-inactive {
+        background: hsl(var(--muted));
+        color: hsl(var(--muted-foreground));
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight" style="color: hsl(var(--foreground));">Video Library</h1>
+            <p class="mt-2 text-sm" style="color: hsl(var(--muted-foreground));">Manage learning content by category</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{{url_for('create_video')}}" class="btn btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg>
+                Create Video
+            </a>
+            <a href="{{url_for('add_video')}}" class="btn btn-secondary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add Video
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Category Tiles -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="category-tile category-onboarding" onclick="toggleCategory('onboarding')" id="tile-onboarding">
+        <div class="category-icon">
+            <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm-5-9h10v2H7z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+        </div>
+        <h3 class="text-2xl font-bold mb-2" style="color: hsl(var(--foreground));">Onboarding</h3>
+        <p class="text-4xl font-bold mb-2" style="color: hsl(var(--foreground));">{{videos_by_category['onboarding']|length}}</p>
+        <p class="text-sm mb-4" style="color: hsl(var(--muted-foreground));">Getting started</p>
+        <div class="flex gap-2">
+            <button onclick="addToCategory(event, 'onboarding')" class="btn btn-sm btn-primary">+ Add</button>
+            <button onclick="exportCategory(event, 'onboarding')" class="btn btn-sm btn-secondary">Export</button>
+        </div>
+    </div>
+    
+    <div class="category-tile category-technical" onclick="toggleCategory('technical')" id="tile-technical">
+        <div class="category-icon">
+            <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+        </div>
+        <h3 class="text-2xl font-bold mb-2" style="color: hsl(var(--foreground));">Technical</h3>
+        <p class="text-4xl font-bold mb-2" style="color: hsl(var(--foreground));">{{videos_by_category['technical']|length}}</p>
+        <p class="text-sm mb-4" style="color: hsl(var(--muted-foreground));">Skills & tools</p>
+        <div class="flex gap-2">
+            <button onclick="addToCategory(event, 'technical')" class="btn btn-sm btn-primary">+ Add</button>
+            <button onclick="exportCategory(event, 'technical')" class="btn btn-sm btn-secondary">Export</button>
+        </div>
+    </div>
+    
+    <div class="category-tile category-business" onclick="toggleCategory('business')" id="tile-business">
+        <div class="category-icon">
+            <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/>
+            </svg>
+        </div>
+        <h3 class="text-2xl font-bold mb-2" style="color: hsl(var(--foreground));">Business</h3>
+        <p class="text-4xl font-bold mb-2" style="color: hsl(var(--foreground));">{{videos_by_category['business']|length}}</p>
+        <p class="text-sm mb-4" style="color: hsl(var(--muted-foreground));">Processes & policy</p>
+        <div class="flex gap-2">
+            <button onclick="addToCategory(event, 'business')" class="btn btn-sm btn-primary">+ Add</button>
+            <button onclick="exportCategory(event, 'business')" class="btn btn-sm btn-secondary">Export</button>
+        </div>
+    </div>
+    
+    <div class="category-tile category-general" onclick="toggleCategory('general')" id="tile-general">
+        <div class="category-icon">
+            <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+            </svg>
+        </div>
+        <h3 class="text-2xl font-bold mb-2" style="color: hsl(var(--foreground));">General</h3>
+        <p class="text-4xl font-bold mb-2" style="color: hsl(var(--foreground));">{{videos_by_category['general']|length}}</p>
+        <p class="text-sm mb-4" style="color: hsl(var(--muted-foreground));">Miscellaneous</p>
+        <div class="flex gap-2">
+            <button onclick="addToCategory(event, 'general')" class="btn btn-sm btn-primary">+ Add</button>
+            <button onclick="exportCategory(event, 'general')" class="btn btn-sm btn-secondary">Export</button>
+        </div>
+    </div>
+</div>
+
+<!-- Expandable Video Lists -->
+{% for category in ['onboarding', 'technical', 'business', 'general'] %}
+<div id="videos-{{category}}" class="videos-grid">
+    <div class="flex items-center justify-between mb-6 p-4 rounded-lg" style="background: hsl(var(--secondary)); border: 1px solid hsl(var(--border));">
+        <h2 class="text-2xl font-bold" style="color: hsl(var(--foreground));">
+            {{category|capitalize}} Videos ({{videos_by_category[category]|length}})
+        </h2>
+        <button onclick="toggleCategory('{{category}}')" class="btn btn-secondary">Close</button>
+    </div>
+    
+    {% if videos_by_category[category]|length > 0 %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for video in videos_by_category[category] %}
+        <div class="video-card">
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex-1">
+                    <h4 class="font-bold text-lg mb-1" style="color: hsl(var(--foreground));">{{video.title}}</h4>
+                    <p class="text-sm line-clamp-2" style="color: hsl(var(--muted-foreground));">{{video.description or 'No description'}}</p>
+                </div>
+                <span class="badge badge-{{category}} ml-2">{{category}}</span>
+            </div>
+            
+            <div class="space-y-1 text-sm mb-3" style="color: hsl(var(--muted-foreground));">
+                <p><strong>Views:</strong> {{video.view_count or 0}}</p>
+                <p><strong>Order:</strong> {{video.order_index or 0}}</p>
+                <p><strong>Created:</strong> {{video.created_at.strftime('%Y-%m-%d')}}</p>
+            </div>
+            
+            <div class="flex items-center justify-between">
+                <span class="badge {% if video.is_active %}badge-active{% else %}badge-inactive{% endif %}">
+                    {{'Active' if video.is_active else 'Inactive'}}
+                </span>
+                <div class="flex gap-2">
+                    <a href="{{url_for('edit_video', video_id=video.id)}}" class="btn btn-sm btn-secondary">Edit</a>
+                    <a href="{{url_for('toggle_video', video_id=video.id)}}" class="btn btn-sm btn-secondary">{{'Deactivate' if video.is_active else 'Activate'}}</a>
+                    <button onclick="deleteVideo({{video.id}},'{{video.title}}')" class="btn btn-sm btn-secondary">Delete</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16 rounded-lg" style="background: hsl(var(--muted));">
+        <p class="text-lg" style="color: hsl(var(--muted-foreground));">No {{category}} videos found</p>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<script>
+function toggleCategory(category) {
+    const grid = document.getElementById(`videos-${category}`);
+    const tile = document.getElementById(`tile-${category}`);
+    
+    // Close others
+    ['onboarding','technical','business','general'].forEach(c => {
+        if(c !== category) {
+            document.getElementById(`videos-${c}`).classList.remove('show');
+            document.getElementById(`tile-${c}`).classList.remove('active');
+        }
+    });
+    
+    // Toggle current
+    grid.classList.toggle('show');
+    tile.classList.toggle('active');
+    
+    if(grid.classList.contains('show')) {
+        setTimeout(() => grid.scrollIntoView({behavior:'smooth', block:'nearest'}), 100);
+    }
+}
+
+function addToCategory(event, category) {
+    event.stopPropagation();
+    // Navigate to add video page with category pre-selected
+    window.location.href = `{{url_for('add_video')}}?category=${category}`;
+}
+
+function deleteVideo(id, title) {
+    if(confirm(`Delete video: ${title}?`)) {
+        fetch(`/videos/${id}/delete`, {method:'POST'})
+            .then(r => r.json())
+            .then(d => d.success ? location.reload() : alert('Error: ' + (d.message || 'Unknown')))
+            .catch(e => alert('Error: ' + e));
+    }
+}
+
+function exportCategory(event, category) {
+    event.stopPropagation();
+    const videos = {
+        {% for cat in ['onboarding', 'technical', 'business', 'general'] %}
+        '{{cat}}': [
+            {% for video in videos_by_category[cat] %}
+            {
+                id: {{video.id}},
+                title: '{{video.title|replace("'", "\\'")}}',
+                description: '{{(video.description or '')|replace("'", "\\'")}}',
+                category: '{{video.category or 'general'}}',
+                is_active: {{video.is_active|lower}},
+                view_count: {{video.view_count or 0}},
+                created_at: '{{video.created_at.strftime('%Y-%m-%d')}}'
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]{% if not loop.last %},{% endif %}
+        {% endfor %}
+    };
+    const categoryVideos = videos[category];
+    
+    const rows = [['ID','Title','Description','Category','Status','Views','Created']];
+    categoryVideos.forEach(v => {
+        rows.push([
+            v.id,
+            v.title,
+            v.description||'',
+            v.category||'general',
+            v.is_active?'Active':'Inactive',
+            v.view_count||0,
+            new Date(v.created_at).toISOString().split('T')[0]
+        ]);
+    });
+    
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${category}_videos_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

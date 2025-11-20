@@ -2,9 +2,10 @@
 Admin Dashboard for MicroLearning Bot
 Web-based interface for managing users, videos, questions, and analytics
 """
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, send_file
 from functools import wraps
 import os
+import uuid
 from datetime import datetime, timedelta
 from sqlalchemy import func, Integer
 from werkzeug.utils import secure_filename
@@ -12,11 +13,18 @@ from werkzeug.utils import secure_filename
 from database.operations import SessionLocal
 from database.models import User, Video, VideoProgress, Question, QuizAttempt, Document
 from config.settings import ADMIN_USERNAME, ADMIN_PASSWORD
+from utils.video_processor import VideoProcessor
+from utils.analytics_service import AnalyticsService
+import csv
+import io
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your-secret-key-change-this')
 app.config['UPLOAD_FOLDER'] = 'data/videos'
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
+
+# Initialize video processor
+video_processor = VideoProcessor()
 
 # Authentication decorator
 def login_required(f):
@@ -104,12 +112,27 @@ def dashboard():
 @app.route('/users')
 @login_required
 def users():
-    """User management page"""
+    """User management page with department-based grouping"""
     db = SessionLocal()
     try:
         all_users = db.query(User).order_by(User.created_at.desc()).all()
-        # Render clean template to avoid previously corrupted file
-        return render_template('users_clean.html', users=all_users)
+        
+        # Group users by department (hr, sales, it)
+        users_by_role = {
+            'hr': [],
+            'sales': [],
+            'it': []
+        }
+        
+        for user in all_users:
+            role = user.role or 'hr'
+            if role in users_by_role:
+                users_by_role[role].append(user)
+            else:
+                # Default to HR if role not recognized
+                users_by_role['hr'].append(user)
+        
+        return render_template('users_grouped.html', users=all_users, users_by_role=users_by_role)
     finally:
         db.close()
 
@@ -317,7 +340,7 @@ def delete_user(user_id):
 @app.route('/videos')
 @login_required
 def videos():
-    """Video management page"""
+    """Video management page with category-based grouping"""
     db = SessionLocal()
     try:
         all_videos = db.query(Video).order_by(Video.order_index, Video.created_at.desc()).all()
@@ -338,7 +361,22 @@ def videos():
                 'completed_watches': completed_watches
             }
         
-        return render_template('videos.html', videos=all_videos, video_stats=video_stats)
+        # Group videos by category
+        videos_by_category = {
+            'onboarding': [],
+            'technical': [],
+            'business': [],
+            'general': []
+        }
+        
+        for video in all_videos:
+            category = video.category or 'general'
+            if category in videos_by_category:
+                videos_by_category[category].append(video)
+            else:
+                videos_by_category['general'].append(video)
+        
+        return render_template('videos_grouped.html', videos=all_videos, video_stats=video_stats, videos_by_category=videos_by_category)
     finally:
         db.close()
 
@@ -459,6 +497,185 @@ def delete_video(video_id):
     return redirect(url_for('videos'))
 
 
+@app.route('/videos/create', methods=['GET'])
+@login_required
+def create_video():
+    """Video creation page with multi-clip upload"""
+    # Generate unique session ID for this creation session
+    session_id = str(uuid.uuid4())
+    session['video_creation_session'] = session_id
+    return render_template('create_video.html', session_id=session_id)
+
+
+@app.route('/videos/create/upload-clip', methods=['POST'])
+@login_required
+def upload_video_clip():
+    """Upload a video clip for compilation"""
+    try:
+        session_id = request.form.get('session_id')
+        if not session_id:
+            return jsonify({'success': False, 'error': 'No session ID provided'}), 400
+        
+        if 'clip' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+        
+        file = request.files['clip']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+        
+        # Save clip
+        success, filepath, error = video_processor.save_uploaded_clip(
+            file,
+            secure_filename(file.filename),
+            session_id
+        )
+        
+        if not success:
+            return jsonify({'success': False, 'error': error}), 400
+        
+        # Get clip info
+        clip_info = video_processor.get_video_info(filepath)
+        if not clip_info:
+            return jsonify({'success': False, 'error': 'Could not read video file'}), 400
+        
+        return jsonify({
+            'success': True,
+            'clip': {
+                'filename': os.path.basename(filepath),
+                'path': filepath,
+                'duration': round(clip_info['duration'], 2),
+                'resolution': f"{clip_info['width']}x{clip_info['height']}",
+                'fps': clip_info['fps'],
+                'has_audio': clip_info['audio']
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/videos/create/list-clips', methods=['GET'])
+@login_required
+def list_video_clips():
+    """Get list of uploaded clips for current session"""
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return jsonify({'success': False, 'error': 'No session ID'}), 400
+    
+    clips = video_processor.get_session_clips(session_id)
+    return jsonify({'success': True, 'clips': clips})
+
+
+@app.route('/videos/create/remove-clip', methods=['POST'])
+@login_required
+def remove_video_clip():
+    """Remove a clip from the compilation"""
+    try:
+        data = request.get_json()
+        filepath = data.get('filepath')
+        
+        if not filepath or not os.path.exists(filepath):
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        os.remove(filepath)
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/videos/create/compile', methods=['POST'])
+@login_required
+def compile_video():
+    """Compile uploaded clips into final video"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        title = data.get('title', 'Untitled Video')
+        description = data.get('description', '')
+        clip_order = data.get('clip_order', [])  # Array of clip paths in order
+        add_title_screen = data.get('add_title_screen', False)
+        add_transitions = data.get('add_transitions', True)
+        
+        if not session_id:
+            return jsonify({'success': False, 'error': 'No session ID'}), 400
+        
+        if not clip_order:
+            return jsonify({'success': False, 'error': 'No clips to compile'}), 400
+        
+        # Generate output filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"compiled_{timestamp}.mp4"
+        
+        # Compile clips
+        success, output_path, error = video_processor.compile_clips(
+            clip_paths=clip_order,
+            output_filename=output_filename,
+            title=title if add_title_screen else None,
+            add_transitions=add_transitions,
+            normalize_audio=True
+        )
+        
+        if not success:
+            return jsonify({'success': False, 'error': error}), 500
+        
+        # Generate thumbnail
+        thumbnail_path = video_processor.generate_thumbnail(output_path)
+        
+        # Get video info
+        video_info = video_processor.get_video_info(output_path)
+        
+        # Save to database
+        db = SessionLocal()
+        try:
+            video = Video(
+                title=title,
+                description=description,
+                file_id=output_path,  # Store local path for now
+                file_path=output_path,
+                duration=int(video_info['duration']) if video_info else None,
+                is_active=False  # Inactive until admin reviews
+            )
+            db.add(video)
+            db.commit()
+            
+            video_id = video.id
+            
+            # Clean up session files
+            video_processor.cleanup_session(session_id)
+            
+            return jsonify({
+                'success': True,
+                'video_id': video_id,
+                'output_path': output_path,
+                'thumbnail': thumbnail_path,
+                'duration': video_info['duration'] if video_info else 0
+            })
+            
+        finally:
+            db.close()
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/videos/create/cancel', methods=['POST'])
+@login_required
+def cancel_video_creation():
+    """Cancel video creation and clean up files"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        
+        if session_id:
+            video_processor.cleanup_session(session_id)
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/questions')
 @login_required
 def questions():
@@ -555,6 +772,252 @@ def api_stats():
             }
         }
         return jsonify(stats)
+    finally:
+        db.close()
+
+
+# ============ Advanced Analytics Routes ============
+
+@app.route('/analytics/dashboard')
+@login_required
+def analytics_dashboard():
+    """Main analytics dashboard with real-time widgets"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        
+        # Get all KPIs and data for initial load
+        kpis = analytics.get_overview_kpis()
+        user_activity = analytics.get_user_activity_breakdown()
+        content_dist = analytics.get_content_distribution()
+        system_health = analytics.get_system_health()
+        
+        return render_template('analytics_dashboard.html',
+                             kpis=kpis,
+                             user_activity=user_activity,
+                             content_distribution=content_dist,
+                             system_health=system_health)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/kpis')
+@login_required
+def api_analytics_kpis():
+    """API endpoint for KPI widgets"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        kpis = analytics.get_overview_kpis()
+        return jsonify(kpis)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/user-growth')
+@login_required
+def api_user_growth():
+    """API endpoint for user growth trend"""
+    days = request.args.get('days', 30, type=int)
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_user_growth_trend(days)
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/user-activity')
+@login_required
+def api_user_activity():
+    """API endpoint for user activity breakdown"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_user_activity_breakdown()
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/top-users')
+@login_required
+def api_top_users():
+    """API endpoint for top users"""
+    limit = request.args.get('limit', 10, type=int)
+    role_filter = request.args.get('role', 'all')
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_top_users(limit, role_filter)
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/video-performance')
+@login_required
+def api_video_performance():
+    """API endpoint for video performance metrics"""
+    category_filter = request.args.get('category', 'all')
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_video_performance(category_filter)
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/content-distribution')
+@login_required
+def api_content_distribution():
+    """API endpoint for content distribution"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_content_distribution()
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/engagement-trends')
+@login_required
+def api_engagement_trends():
+    """API endpoint for engagement trends"""
+    days = request.args.get('days', 30, type=int)
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_engagement_trends(days)
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/quiz-performance')
+@login_required
+def api_quiz_performance():
+    """API endpoint for quiz performance stats"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_quiz_performance_stats()
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/system-health')
+@login_required
+def api_system_health():
+    """API endpoint for system health metrics"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_system_health()
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/users-by-role')
+@login_required
+def api_users_by_role():
+    """API endpoint for users grouped by role"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_users_by_role()
+        return jsonify(data)
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/user/<int:user_id>')
+@login_required
+def api_user_detail(user_id):
+    """API endpoint for detailed user analytics"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_user_detail(user_id)
+        if data:
+            return jsonify(data)
+        return jsonify({'error': 'User not found'}), 404
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/video/<int:video_id>')
+@login_required
+def api_video_detail(video_id):
+    """API endpoint for detailed video analytics"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        data = analytics.get_video_detail(video_id)
+        if data:
+            return jsonify(data)
+        return jsonify({'error': 'Video not found'}), 404
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/export/<data_type>')
+@login_required
+def api_export_data(data_type):
+    """API endpoint for exporting data as CSV"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        
+        # Get filters from query params
+        filters = {}
+        if request.args.get('active_only') == 'true':
+            filters['active_only'] = True
+        if request.args.get('date_from'):
+            filters['date_from'] = datetime.fromisoformat(request.args.get('date_from'))
+        if request.args.get('days'):
+            filters['days'] = int(request.args.get('days'))
+        
+        # Export data
+        data = analytics.export_data(data_type, filters)
+        
+        if not data:
+            return jsonify({'error': 'Invalid data type or no data available'}), 400
+        
+        # Create CSV
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+        
+        # Prepare response
+        response = send_file(
+            io.BytesIO(output.getvalue().encode('utf-8')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'{data_type}_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        )
+        
+        return response
+    finally:
+        db.close()
+
+
+@app.route('/api/analytics/clear-cache', methods=['POST'])
+@login_required
+def api_clear_cache():
+    """API endpoint to clear analytics cache"""
+    db = SessionLocal()
+    try:
+        analytics = AnalyticsService(db)
+        analytics.clear_cache()
+        return jsonify({'success': True, 'message': 'Cache cleared successfully'})
     finally:
         db.close()
 
