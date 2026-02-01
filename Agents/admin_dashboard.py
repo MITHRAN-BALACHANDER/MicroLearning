@@ -6,6 +6,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from functools import wraps
 import os
 import uuid
+import json
 from datetime import datetime, timedelta
 from sqlalchemy import func, Integer
 from werkzeug.utils import secure_filename
@@ -25,6 +26,17 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
 
 # Initialize video processor
 video_processor = VideoProcessor()
+
+# Custom Jinja2 filter for JSON parsing
+@app.template_filter('from_json')
+def from_json_filter(value):
+    """Parse JSON string to Python object"""
+    if not value:
+        return []
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return []
 
 # Authentication decorator
 def login_required(f):
@@ -683,7 +695,102 @@ def questions():
     db = SessionLocal()
     try:
         all_questions = db.query(Question).order_by(Question.created_at.desc()).all()
-        return render_template('questions.html', questions=all_questions)
+        all_videos = db.query(Video).filter(Video.is_active == True).order_by(Video.title).all()
+        return render_template('questions.html', questions=all_questions, videos=all_videos)
+    finally:
+        db.close()
+
+
+@app.route('/questions/add', methods=['POST'])
+@login_required
+def add_question():
+    """Add a new question for a video"""
+    db = SessionLocal()
+    try:
+        video_id = request.form.get('video_id', type=int)
+        question_text = request.form.get('question_text', '').strip()
+        question_type = request.form.get('question_type', 'open')
+        difficulty = request.form.get('difficulty', 1, type=int)
+        concepts = request.form.get('concepts', '').strip()
+        redirect_to_video = request.form.get('redirect_to_video', 'false')
+        
+        # Validate input
+        if not video_id or not question_text:
+            flash('Video and question text are required!', 'danger')
+            if redirect_to_video == 'true':
+                return redirect(url_for('video_questions', video_id=video_id))
+            return redirect(url_for('questions'))
+        
+        # Parse concepts
+        concepts_list = [c.strip() for c in concepts.split(',') if c.strip()] if concepts else []
+        
+        # Create question
+        from database.operations import add_question as add_question_op
+        question = add_question_op(
+            video_id=video_id,
+            question_text=question_text,
+            question_type=question_type,
+            concepts_tested=concepts_list,
+            difficulty=difficulty
+        )
+        
+        flash(f'Question added successfully!', 'success')
+        if redirect_to_video == 'true':
+            return redirect(url_for('video_questions', video_id=video_id))
+        return redirect(url_for('questions'))
+    except Exception as e:
+        flash(f'Error adding question: {str(e)}', 'danger')
+        if video_id and redirect_to_video == 'true':
+            return redirect(url_for('video_questions', video_id=video_id))
+        return redirect(url_for('questions'))
+    finally:
+        db.close()
+
+
+@app.route('/questions/<int:question_id>/delete', methods=['POST'])
+@login_required
+def delete_question(question_id):
+    """Delete a question"""
+    db = SessionLocal()
+    try:
+        question = db.query(Question).filter(Question.id == question_id).first()
+        if not question:
+            flash('Question not found!', 'danger')
+            return redirect(url_for('questions'))
+        
+        video_id = question.video_id
+        redirect_to_video = request.form.get('redirect_to_video', 'false')
+        
+        db.delete(question)
+        db.commit()
+        flash('Question deleted successfully!', 'success')
+        
+        if redirect_to_video == 'true' and video_id:
+            return redirect(url_for('video_questions', video_id=video_id))
+        return redirect(url_for('questions'))
+    except Exception as e:
+        flash(f'Error deleting question: {str(e)}', 'danger')
+        return redirect(url_for('questions'))
+    finally:
+        db.close()
+
+
+@app.route('/videos/<int:video_id>/questions')
+@login_required
+def video_questions(video_id):
+    """View all questions for a specific video"""
+    db = SessionLocal()
+    try:
+        video = db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            flash('Video not found!', 'danger')
+            return redirect(url_for('videos'))
+        
+        questions = db.query(Question).filter(
+            Question.video_id == video_id
+        ).order_by(Question.created_at.desc()).all()
+        
+        return render_template('video_questions.html', video=video, questions=questions)
     finally:
         db.close()
 

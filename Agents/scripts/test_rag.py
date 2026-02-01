@@ -30,7 +30,7 @@ async def test_rag():
     print("🔧 Initializing database...")
     init_db()
     
-    print("🤖 Creating mock bot...")
+    print(" Creating mock bot...")
     mock_bot = MockBot()
     
     print("🧠 Initializing RAG Agent...")
@@ -38,7 +38,7 @@ async def test_rag():
     
     # Check collection stats
     count = rag_agent.collection.count()
-    print(f"📊 ChromaDB Collection Stats:")
+    print(f"  ChromaDB Collection Stats:")
     print(f"   Total chunks: {count}")
     
     if count == 0:
@@ -69,7 +69,7 @@ async def test_rag():
         "What is the vacation policy?"
     ]
     
-    print(f"\n🔍 Testing RAG queries...\n")
+    print(f"\n  Testing RAG queries...\n")
     
     for query in test_queries:
         print(f"\n{'─'*60}")

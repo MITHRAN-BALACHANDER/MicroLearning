@@ -188,7 +188,7 @@ class QuestionAgent:
             first_question = questions[0]
             await self.bot.send_message(
                 chat_id=telegram_id,
-                text=f"📝 **Quiz Time!**\n\n"
+                text=f"Quiz Time!\n\n"
                      f"Question 1/{len(questions)}:\n\n"
                      f"{first_question['question']}\n\n"
                      f"Please type your answer:"
@@ -294,8 +294,8 @@ class QuestionAgent:
                 next_q = quiz_state["questions"][quiz_state["current_index"]]
                 await self.bot.send_message(
                     chat_id=telegram_id,
-                    text=f"✅ **Rating: {evaluation['rating']}/10**\n\n"
-                         f"**Feedback:** {evaluation['feedback']}\n\n"
+                    text=f"Rating: {evaluation['rating']}/10\n\n"
+                         f"Feedback: {evaluation['feedback']}\n\n"
                          f"───────────\n\n"
                          f"Question {quiz_state['current_index'] + 1}/{len(quiz_state['questions'])}:\n\n"
                          f"{next_q['question']}\n\n"
@@ -313,11 +313,11 @@ class QuestionAgent:
                 
                 await self.bot.send_message(
                     chat_id=telegram_id,
-                    text=f"✅ **Rating: {evaluation['rating']}/10**\n\n"
-                         f"**Feedback:** {evaluation['feedback']}\n\n"
+                    text=f"Rating: {evaluation['rating']}/10\n\n"
+                         f"Feedback: {evaluation['feedback']}\n\n"
                          f"───────────\n\n"
-                         f"🎉 **Quiz Completed!**\n\n"
-                         f"Average Score: **{avg_rating:.1f}/10**\n\n"
+                         f"Quiz Completed!\n\n"
+                         f"Average Score: {avg_rating:.1f}/10\n\n"
                          f"Great job! Use /progress to see your overall progress."
                 )
                 

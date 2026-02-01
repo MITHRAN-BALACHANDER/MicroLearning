@@ -221,9 +221,9 @@ Provide a clear answer citing the source documents."""
             
             # Format message without markdown formatting to avoid parsing errors
             message_text = (
-                f"📚 Answer:\n\n{escape_markdown(answer)}\n\n"
+                f"Answer:\n\n{escape_markdown(answer)}\n\n"
                 f"───────────\n"
-                f"Sources:\n" + "\n".join([f"• {s}" for s in sources])
+                f"Sources:\n" + "\n".join([f"- {s}" for s in sources])
             )
             
             # Send answer to user (without parse_mode to avoid markdown errors)
@@ -305,9 +305,9 @@ Provide a clear answer citing the source documents."""
             # Send summary
             await self.bot.send_message(
                 chat_id=telegram_id,
-                text=f"📄 **Document Summary**\n\n"
-                     f"**Title:** {doc_title}\n"
-                     f"**Type:** {doc_type}\n\n"
+                text=f"Document Summary\n\n"
+                     f"Title: {doc_title}\n"
+                     f"Type: {doc_type}\n\n"
                      f"{summary}"
             )
             
@@ -337,7 +337,7 @@ Provide a clear answer citing the source documents."""
             if not documents:
                 await self.bot.send_message(
                     chat_id=telegram_id,
-                    text="📚 No documents are currently available in the system."
+                    text="No documents are currently available in the system."
                 )
                 return {"success": True, "documents": []}
             
@@ -349,12 +349,12 @@ Provide a clear answer citing the source documents."""
                 docs_by_type[doc.doc_type].append(doc)
             
             # Format message
-            message = "📚 **Available Documents**\n\n"
+            message = "Available Documents\n\n"
             
             for doc_type, docs in docs_by_type.items():
-                message += f"**{doc_type.upper()}:**\n"
+                message += f"{doc_type.upper()}:\n"
                 for doc in docs:
-                    message += f"  • {doc.title} (ID: {doc.id})\n"
+                    message += f"  - {doc.title} (ID: {doc.id})\n"
                 message += "\n"
             
             message += "Use `/ask [your question]` to search these documents!"

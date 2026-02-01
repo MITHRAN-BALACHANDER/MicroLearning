@@ -1,0 +1,65 @@
+# Application Features Analysis
+
+## Overview
+The **MicroLearning Bot** is a comprehensive educational platform combining a Telegram Bot interface for learners and a Web Dashboard for administrators. It utilizes AI Agents (Google Gemini via Agno) for dynamic content delivery, assessment, and documentation support.
+
+## 1. Telegram Bot (Learner Interface)
+The primary interface for users to interact with learning content.
+
+### Core Learning Features
+-   **Daily Video Delivery** (`/video`):
+    -   Delivers microlearning videos based on user progress.
+    -   Tracks watch history and completion status.
+    -   Supports progressive difficulty levels.
+-   **Interactive Quizzes** (`/quiz`):
+    -   Generates conceptual questions based on the last watched video.
+    -   **AI Evaluation**: Uses AI to rate user answers (0-10) and provide qualitative feedback.
+    -   Supports open-ended questions testing deep understanding.
+-   **Progress Tracking** (`/progress`):
+    -   Displays statistics on watched videos and completion rates.
+    -   Shows quiz performance (average score, total questions answered).
+
+### RAG (Retrieval-Augmented Generation) Support
+-   **Document Querying** (`/ask`):
+    -   Allows users to ask natural language questions about company documents (SOPs, manuals).
+    -   Uses vector search (ChromaDB) to find relevant context.
+    -   Generates accurate, cited answers using LLM.
+-   **Document Listing** (`/docs`):
+    -   Lists available resources accessible to the user.
+
+## 2. Admin Dashboard (Web Interface)
+A Flask-based web application for managing the platform.
+
+### Dashboard & Analytics
+-   **Overview Stats**: Real-time metrics on total users, active videos, quiz attempts, and engagement.
+-   **Activity Monitoring**: Tracks daily and weekly active users.
+-   **Visualizations**: Charts for user growth and engagement (implied by templates).
+
+### User Management
+-   **CRUD Operations**: Add, Edit, Delete, and Toggle status of users.
+-   **Department Grouping**: Organizes users by roles (HR, Sales, IT).
+-   **Individual Progress**: specific view for each user's video history and quiz scores.
+
+### Content Management
+-   **Video Management**:
+    -   Upload and manage video content.
+    -   **Video Creation Tool**: Built-in editor to upload clips, arrange them, and compile into a single video with transitions and title screens.
+    -   Categorization (Onboarding, Technical, Business).
+-   **Question Management**:
+    -   Manual creation of questions linked to videos.
+    -   Specify difficulty, concepts tested, and question type.
+    -   View and manage questions per video.
+
+## 3. Intelligent Agents (Backend)
+The system is powered by an **Agent Orchestrator** that routes requests to specialized agents.
+
+-   **Video Agent**: Manages video logic, file handling (Local/URL/Telegram ID), and delivery tracking.
+-   **Question Agent**:
+    -   **Dynamic Generation**: Can generate questions from video transcripts or *direct video analysis* (using Gemini 1.5 Pro).
+    -   **Assessment**: Evaluates free-text answers against key concepts.
+-   **RAG Agent**: Handles document embedding, retrieval, and synthesis of answers.
+
+## 4. Technical Features
+-   **Database**: SQLite with SQLAlchemy ORM (User, Video, Question, QuizAttempt, Document models).
+-   **Video Processing**: Capabilities to stitch clips, add transitions, and generate thumbnails ([utils/video_processor.py](file:///c:/Users/bmith/OneDrive/Desktop/projects%20-2025/MicroLearning/Agents/utils/video_processor.py)).
+-   **Scalability**: Designed with Agno (AgentOS) principles for independent agent operation.

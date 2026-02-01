@@ -73,11 +73,31 @@ class VideoAgent:
                 seconds = video.duration % 60
                 duration_text = f"Duration: {minutes}:{seconds:02d}\n"
             
-            # Prepare caption
-            caption = (f"📹 **{video.title}**\n\n{video.description}\n\n"
-                      f"{duration_text}"
-                      f"Difficulty: {'⭐' * video.difficulty_level}\n\n"
-                      f"Watch this video and then use /quiz to test your understanding!")
+            # Prepare caption with Telegram's 1024 character limit
+            title = video.title[:100] if video.title else "Video"
+            description = video.description or "Educational video"
+            
+            # Build caption components
+            base_text = f"{title}\n\n"
+            difficulty_stars = '*' * video.difficulty_level
+            footer_text = (f"\n{duration_text}"
+                          f"Difficulty: {difficulty_stars}\n\n"
+                          f"Watch this video and then use /quiz to test your understanding!")
+            
+            # Calculate available space for description (1024 char Telegram limit)
+            available_space = 1024 - len(base_text) - len(footer_text) - 10  # 10 char safety buffer
+            
+            # Truncate description if needed
+            if len(description) > available_space:
+                description = description[:max(0, available_space - 3)] + "..."
+            
+            # Build final caption
+            caption = base_text + description + footer_text
+            
+            # Final safety check - ensure caption doesn't exceed 1024 chars
+            if len(caption) > 1024:
+                caption = caption[:1021] + "..."
+                logger.warning(f"Caption truncated to 1024 chars for video {video.id}")
             
             # Determine file_id type and send appropriately
             file_identifier = video.file_id.strip()
@@ -134,20 +154,32 @@ class VideoAgent:
             logger.info(f"Sending video {video.id} to user {telegram_id} using method: {send_method}")
             
             if send_method == "local_file":
-                # Send local file
+                # Send local file with extended timeout for large files
+                file_size = os.path.getsize(video_source)
+                file_size_mb = file_size / (1024 * 1024)
+                
+                # Calculate timeout: 30s base + 10s per MB
+                timeout = max(60, 30 + int(file_size_mb * 10))
+                logger.info(f"Opening local file: {video_source} (size: {file_size_mb:.2f} MB, timeout: {timeout}s)")
+                
                 with open(video_source, "rb") as video_file:
-                    logger.info(f"Opening local file: {video_source} (size: {os.path.getsize(video_source)} bytes)")
                     message = await self.bot.send_video(
                         chat_id=telegram_id,
                         video=video_file,
-                        caption=caption
+                        caption=caption,
+                        read_timeout=timeout,
+                        write_timeout=timeout,
+                        connect_timeout=30,
+                        pool_timeout=30
                     )
             else:
                 # Send Telegram file_id or URL
                 message = await self.bot.send_video(
                     chat_id=telegram_id,
                     video=video_source,
-                    caption=caption
+                    caption=caption,
+                    read_timeout=30,
+                    write_timeout=30
                 )
             
             # Track video delivery in memory
@@ -170,11 +202,21 @@ class VideoAgent:
             }
             
         except Exception as e:
-            logger.error(f"Error sending video (file_id/path: {video.file_id if 'video' in locals() else 'unknown'}): {str(e)}")
+            error_msg = str(e)
+            logger.error(f"Error sending video (file_id/path: {video.file_id if 'video' in locals() else 'unknown'}): {error_msg}")
             logger.exception(e)  # Log full traceback
+            
+            # Provide user-friendly error messages
+            if "caption is too long" in error_msg.lower():
+                error_msg = "Video caption was too long. Please contact support."
+            elif "timed out" in error_msg.lower():
+                error_msg = "Video upload timed out. The file may be too large. Please try again."
+            elif "file not found" in error_msg.lower():
+                error_msg = "Video file not found. Please contact support."
+            
             return {
                 "success": False,
-                "error": str(e)
+                "error": error_msg
             }
     
     async def _check_url_reachable(self, url: str) -> bool:

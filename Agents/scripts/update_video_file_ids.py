@@ -112,7 +112,7 @@ def update_file_ids():
                 print(f"{status} - {video.title}")
             
             print()
-            print(f"📊 Summary: {ready_count}/{len(videos)} videos ready")
+            print(f"  Summary: {ready_count}/{len(videos)} videos ready")
             
             if ready_count == len(videos):
                 print("🎉 All videos have valid file_ids! You can now use the bot.")

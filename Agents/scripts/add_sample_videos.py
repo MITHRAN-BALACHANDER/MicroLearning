@@ -56,7 +56,7 @@ def add_videos_from_folder():
         added_count = 0
         
         for idx, video_path in enumerate(video_files, 1):
-            print(f"📹 Processing ({idx}/{len(video_files)}): {video_path.name}")
+            print(f"  Processing ({idx}/{len(video_files)}): {video_path.name}")
             
             # Generate title from filename
             title = video_path.stem.replace('_', ' ').replace('-', ' ').title()
@@ -93,7 +93,7 @@ def add_videos_from_folder():
         print(f"{'='*60}\n")
         
         if added_count > 0:
-            print("📝 Next Steps:")
+            print("  Next Steps:")
             print("\n1. Get Telegram file_ids:")
             print("   a. Start your bot: python main.py")
             print("   b. Send each video to your bot")
@@ -103,7 +103,7 @@ def add_videos_from_folder():
             print("\n2. Update database:")
             print("   python scripts/update_video_file_ids.py")
             
-            print("\n📊 Current videos in database:")
+            print("\n  Current videos in database:")
             with get_db() as db:
                 videos = db.query(Video).all()
                 for v in videos:

@@ -32,7 +32,7 @@ def quick_update():
         
         print("="*60)
         print()
-        print("📝 How to get file_id:")
+        print("  How to get file_id:")
         print("1. Open Telegram")
         print("2. Search for @getidsbot")
         print("3. Send your video to @getidsbot")

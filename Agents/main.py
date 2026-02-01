@@ -53,15 +53,15 @@ class MicroLearningBot:
         )
         
         welcome_message = f"""
-👋 **Welcome to MicroLearning Bot, {user.first_name}!**
+Welcome to MicroLearning Bot, {user.first_name}!
 
 I'm powered by multiple AI agents to help you learn effectively:
 
-🎥 **Video Agent** - Delivers daily learning videos
-📝 **Question Agent** - Tests your understanding
-📚 **RAG Agent** - Answers questions from company docs
+- Video Agent - Delivers daily learning videos
+- Question Agent - Tests your understanding
+- RAG Agent - Answers questions from company docs
 
-**Available Commands:**
+Available Commands:
 /video - Get today's learning video
 /quiz - Take a quiz on recent content
 /ask [question] - Ask about company manuals/SOPs
@@ -69,7 +69,7 @@ I'm powered by multiple AI agents to help you learn effectively:
 /docs - List available documents
 /help - Show this help message
 
-Let's start your learning journey! 🚀
+Let's start your learning journey!
 """
         
         await update.message.reply_text(welcome_message)
@@ -79,25 +79,37 @@ Let's start your learning journey! 🚀
         """Handle /video command - Send next video"""
         telegram_id = str(update.effective_user.id)
         
-        await update.message.reply_text("📹 Fetching your next video...")
-        
-        video_agent = await self.orchestrator.get_agent(AgentType.VIDEO)
-        result = await video_agent.send_daily_video(telegram_id)
-        
-        if not result["success"]:
-            await update.message.reply_text(f"❌ {result['error']}")
+        try:
+            await update.message.reply_text("Fetching your next video...")
+            
+            video_agent = await self.orchestrator.get_agent(AgentType.VIDEO)
+            result = await video_agent.send_daily_video(telegram_id)
+            
+            if not result["success"]:
+                error_msg = result.get('error', 'Unknown error occurred')
+                await update.message.reply_text(f"ERROR: {error_msg}")
+                logger.error(f"Video command failed for user {telegram_id}: {error_msg}")
+        except Exception as e:
+            logger.exception(f"Error in video_command for user {telegram_id}")
+            await update.message.reply_text("ERROR: An error occurred. Please try again later or contact support.")
     
     async def quiz_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /quiz command - Start quiz session"""
         telegram_id = str(update.effective_user.id)
         
-        await update.message.reply_text("📝 Preparing your quiz...")
-        
-        question_agent = await self.orchestrator.get_agent(AgentType.QUESTION)
-        result = await question_agent.start_quiz(telegram_id)
-        
-        if not result["success"]:
-            await update.message.reply_text(f"❌ {result['error']}")
+        try:
+            await update.message.reply_text("Preparing your quiz...")
+            
+            question_agent = await self.orchestrator.get_agent(AgentType.QUESTION)
+            result = await question_agent.start_quiz(telegram_id)
+            
+            if not result["success"]:
+                error_msg = result.get('error', 'Unable to start quiz')
+                await update.message.reply_text(f"ERROR: {error_msg}")
+                logger.error(f"Quiz command failed for user {telegram_id}: {error_msg}")
+        except Exception as e:
+            logger.exception(f"Error in quiz_command for user {telegram_id}")
+            await update.message.reply_text("ERROR: An error occurred. Please try again later.")
     
     async def ask_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /ask command - Query company documents"""
@@ -108,26 +120,26 @@ Let's start your learning journey! 🚀
         
         if not query:
             await update.message.reply_text(
-                "❓ Please provide a question.\n\n"
-                "Example: `/ask What is the vacation policy?`"
+                "Please provide a question.\n\n"
+                "Example: /ask What is the vacation policy?"
             )
             return
         
-        await update.message.reply_text("🔍 Searching company documents...")
+        await update.message.reply_text("Searching company documents...")
         
         try:
             rag_agent = await self.orchestrator.get_agent(AgentType.RAG)
             result = await rag_agent.query_documents(query, telegram_id)
             
             if not result["success"]:
-                await update.message.reply_text(f"❌ {result.get('error', 'Unknown error occurred')}")
+                await update.message.reply_text(f"ERROR: {result.get('error', 'Unknown error occurred')}")
             elif result.get("message"):
                 # If agent didn't send message, send it from here
                 logger.info(f"RAG query successful, message should have been sent by agent")
         except Exception as e:
             logger.error(f"Error in ask_command: {str(e)}")
             await update.message.reply_text(
-                f"❌ Sorry, I encountered an error while searching the documents.\n\n"
+                f"ERROR: Sorry, I encountered an error while searching the documents.\n\n"
                 f"Error: {str(e)}"
             )
     
@@ -141,21 +153,21 @@ Let's start your learning journey! 🚀
         if result["success"]:
             progress = result["progress"]
             message = f"""
-📊 **Your Learning Progress**
+Your Learning Progress
 
-🎥 **Videos:**
-  • Watched: {progress['watched_videos']}/{progress['total_videos']}
-  • Completion: {progress['completion_rate']:.1f}%
+Videos:
+  - Watched: {progress['watched_videos']}/{progress['total_videos']}
+  - Completion: {progress['completion_rate']:.1f}%
 
-📝 **Quizzes:**
-  • Questions Answered: {progress['total_questions_answered']}
-  • Average Score: {progress['average_score']}/10
+Quizzes:
+  - Questions Answered: {progress['total_questions_answered']}
+  - Average Score: {progress['average_score']}/10
 
-Keep up the great work! 🌟
+Keep up the great work!
 """
             await update.message.reply_text(message)
         else:
-            await update.message.reply_text(f"❌ {result['error']}")
+            await update.message.reply_text(f"ERROR: {result['error']}")
     
     async def docs_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /docs command - List available documents"""
@@ -167,34 +179,34 @@ Keep up the great work! 🌟
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         help_text = """
-🤖 **MicroLearning Bot Help**
+MicroLearning Bot Help
 
-**Commands:**
+Commands:
 
-🎥 `/video` - Get your next learning video
+/video - Get your next learning video
 
-📝 `/quiz` - Start a quiz on recent content
+/quiz - Start a quiz on recent content
    After watching a video, test your understanding!
 
-🔍 `/ask [question]` - Ask about company documents
+/ask [question] - Ask about company documents
    Example: /ask What is the remote work policy?
 
-📚 `/docs` - List all available documents
+/docs - List all available documents
    See what manuals and SOPs are available
 
-📊 `/progress` - View your learning statistics
+/progress - View your learning statistics
    Track your videos watched and quiz scores
 
-**How it works:**
+How it works:
 
-1. **Daily Videos** - Request a video with /video
-2. **Take Quizzes** - After watching, use /quiz
-3. **Ask Questions** - Use /ask for company info
+1. Daily Videos - Request a video with /video
+2. Take Quizzes - After watching, use /quiz
+3. Ask Questions - Use /ask for company info
 
-**Agents:**
-• Video Agent - Manages content delivery
-• Question Agent - Creates and evaluates quizzes
-• RAG Agent - Answers questions from documents
+Agents:
+- Video Agent - Manages content delivery
+- Question Agent - Creates and evaluates quizzes
+- RAG Agent - Answers questions from documents
 
 Need more help? Contact your administrator.
 """
@@ -219,10 +231,10 @@ Need more help? Contact your administrator.
                 agent_type = result["agent"]
                 await update.message.reply_text(
                     f"I'll help you with that! Use the appropriate command:\n\n"
-                    f"• `/video` for videos\n"
-                    f"• `/quiz` for quizzes\n"
-                    f"• `/ask [question]` for documents\n"
-                    f"• `/help` for all commands"
+                    f"- /video for videos\n"
+                    f"- /quiz for quizzes\n"
+                    f"- /ask [question] for documents\n"
+                    f"- /help for all commands"
                 )
     
     async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -231,7 +243,7 @@ Need more help? Contact your administrator.
         
         if update and update.effective_message:
             await update.effective_message.reply_text(
-                "❌ An error occurred. Please try again or contact support."
+                "ERROR: An error occurred. Please try again or contact support."
             )
     
     async def post_init(self, application: Application):
@@ -248,14 +260,23 @@ Need more help? Contact your administrator.
     def run(self):
         """Run the bot"""
         try:
+            # Validate environment
+            logger.info("Validating environment...")
+            if not TELEGRAM_BOT_TOKEN:
+                logger.error("TELEGRAM_BOT_TOKEN not found in environment!")
+                raise ValueError("Missing TELEGRAM_BOT_TOKEN. Please set it in .env file.")
+            
             # Initialize database
             logger.info("Initializing database...")
             init_db()
+            logger.info("Database initialized successfully")
             
             # Create application
+            logger.info("Creating Telegram application...")
             self.app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
             
             # Register handlers
+            logger.info("Registering command handlers...")
             self.app.add_handler(CommandHandler("start", self.start_command))
             self.app.add_handler(CommandHandler("video", self.video_command))
             self.app.add_handler(CommandHandler("quiz", self.quiz_command))
@@ -273,14 +294,26 @@ Need more help? Contact your administrator.
             # Post init
             self.app.post_init = self.post_init
             
+            logger.info("="*60)
+            logger.info("MicroLearning Bot is READY!")
+            logger.info("="*60)
             logger.info("Starting bot...")
             self.app.run_polling(allowed_updates=Update.ALL_TYPES)
             
+        except KeyboardInterrupt:
+            logger.info("\nBot stopped by user")
         except Exception as e:
             logger.error(f"Failed to start bot: {str(e)}")
+            logger.exception(e)
             raise
 
 
 if __name__ == "__main__":
-    bot = MicroLearningBot()
-    bot.run()
+    try:
+        bot = MicroLearningBot()
+        bot.run()
+    except KeyboardInterrupt:
+        logger.info("Shutdown complete")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        sys.exit(1)

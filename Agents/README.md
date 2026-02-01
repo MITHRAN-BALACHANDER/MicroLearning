@@ -4,18 +4,18 @@ A sophisticated Telegram bot powered by multiple Agno agents for microlearning, 
 
 ## Features
 
-### 🎥 Video Sending Agent
+###  Video Sending Agent
 - Sends daily videos from database to users
 - Tracks user progress and video history
 - Schedules videos based on user preferences
 
-### 📝 Question & Rating Agent
+###   Question & Rating Agent
 - Asks conceptual questions based on video content
 - Rates and evaluates user answers using AI
 - Provides feedback and learning insights
 - Tracks learning progress
 
-### 📚 RAG Agent
+###   RAG Agent
 - Access to company manuals and SOPs
 - Semantic search capabilities
 - Context-aware responses
