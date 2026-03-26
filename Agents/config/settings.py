@@ -43,8 +43,12 @@ LOG_FILE = os.getenv("LOG_FILE", "./logs/bot.log")
 # Paths
 DATA_DIR = BASE_DIR / "data"
 DOCUMENTS_DIR = DATA_DIR / "documents"
-VIDEOS_DIR = DATA_DIR / "videos"
+# VIDEOS_DIR = DATA_DIR / "videos"  # Old path
+VIDEOS_DIR = Path("C:/MicroLearning/data/videos")
 LOGS_DIR = BASE_DIR / "logs"
+
+# Admin Configuration
+ADMIN_CHAT_ID = "6437411483"  # Mithran's ID
 
 # Create directories if they don't exist
 for directory in [DATA_DIR, DOCUMENTS_DIR, VIDEOS_DIR, LOGS_DIR]:

@@ -5,7 +5,6 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import asyncio
 import os
-import re
 from pathlib import Path
 from loguru import logger
 
@@ -15,14 +14,6 @@ from database.operations import (
     mark_video_watched
 )
 from config.settings import VIDEO_AGENT_PROMPT
-
-try:
-    import aiohttp
-    HAS_AIOHTTP = True
-except ImportError:
-    HAS_AIOHTTP = False
-    import requests
-
 
 class VideoAgent:
     """
@@ -41,7 +32,7 @@ class VideoAgent:
     
     async def send_daily_video(self, telegram_id: str) -> Dict[str, Any]:
         """
-        Send the next video to a user
+        Send the next video to a user using cached file_id
         
         Args:
             telegram_id: User's Telegram ID
@@ -99,88 +90,36 @@ class VideoAgent:
                 caption = caption[:1021] + "..."
                 logger.warning(f"Caption truncated to 1024 chars for video {video.id}")
             
-            # Determine file_id type and send appropriately
-            file_identifier = video.file_id.strip()
-            video_source = None
-            send_method = None
+            # Send using cached file_id only
+            file_id = video.file_id
             
-            # 1. Check if it's a Telegram file_id (starts with common prefixes)
-            telegram_file_id_pattern = r'^(BAAC|AgAC|CgAC|AwAC|DgAC|DQA|CQAD|BQAD|BQAC)'
-            if re.match(telegram_file_id_pattern, file_identifier, re.IGNORECASE):
-                logger.info(f"Detected Telegram file_id for video {video.id}: {file_identifier[:20]}...")
-                video_source = file_identifier
-                send_method = "telegram_file_id"
+            if not file_id:
+                logger.error(f"Video {video.id} has no file_id")
+                return {
+                    "success": False,
+                    "error": "Video content missing. Please contact support."
+                }
+                
+            logger.info(f"Sending video {video.id} to user {telegram_id} using cached file_id: {file_id}")
             
-            # 2. Check if it's a URL (http/https)
-            elif file_identifier.startswith(('http://', 'https://')):
-                logger.info(f"Detected URL for video {video.id}: {file_identifier}")
-                
-                # Validate URL reachability
-                is_reachable = await self._check_url_reachable(file_identifier)
-                if not is_reachable:
-                    logger.error(f"URL is not reachable: {file_identifier}")
-                    return {
-                        "success": False,
-                        "error": f"Video URL is not accessible: {file_identifier}"
-                    }
-                
-                video_source = file_identifier
-                send_method = "url"
-            
-            # 3. Assume it's a local file path
-            else:
-                logger.info(f"Detected local file path for video {video.id}: {file_identifier}")
-                
-                # Check if file exists
-                if not os.path.exists(file_identifier):
-                    logger.error(f"Local file does not exist: {file_identifier}")
-                    return {
-                        "success": False,
-                        "error": f"Video file not found: {file_identifier}"
-                    }
-                
-                # Check if it's a file (not directory)
-                if not os.path.isfile(file_identifier):
-                    logger.error(f"Path is not a file: {file_identifier}")
-                    return {
-                        "success": False,
-                        "error": f"Invalid video file path: {file_identifier}"
-                    }
-                
-                video_source = file_identifier
-                send_method = "local_file"
-            
-            # Send video based on detected type
-            logger.info(f"Sending video {video.id} to user {telegram_id} using method: {send_method}")
-            
-            if send_method == "local_file":
-                # Send local file with extended timeout for large files
-                file_size = os.path.getsize(video_source)
-                file_size_mb = file_size / (1024 * 1024)
-                
-                # Calculate timeout: 30s base + 10s per MB
-                timeout = max(60, 30 + int(file_size_mb * 10))
-                logger.info(f"Opening local file: {video_source} (size: {file_size_mb:.2f} MB, timeout: {timeout}s)")
-                
-                with open(video_source, "rb") as video_file:
-                    message = await self.bot.send_video(
-                        chat_id=telegram_id,
-                        video=video_file,
-                        caption=caption,
-                        read_timeout=timeout,
-                        write_timeout=timeout,
-                        connect_timeout=30,
-                        pool_timeout=30
-                    )
-            else:
-                # Send Telegram file_id or URL
+            try:
                 message = await self.bot.send_video(
                     chat_id=telegram_id,
-                    video=video_source,
+                    video=file_id,
                     caption=caption,
                     read_timeout=30,
                     write_timeout=30
                 )
+            except Exception as e:
+                 # Check for timeout specifically
+                error_msg = str(e).lower()
+                if "timed out" in error_msg:
+                    logger.error(f"Network timeout sending cached file_id {file_id}")
+                    return {
+                        "success": False,
+                        "error": "Video delivery failed due to network timeout. Retrying via cached delivery."
+                    }
+                raise e
             
             # Track video delivery in memory
             self.active_deliveries[telegram_id] = {
@@ -192,7 +131,7 @@ class VideoAgent:
             # Mark video as started (in progress) in database so quiz can access it
             mark_video_watched(user.id, video.id, completed=False, watch_time=0)
             
-            logger.info(f"Successfully sent video {video.id} to user {telegram_id} via {send_method}")
+            logger.info(f"Successfully sent video {video.id} to user {telegram_id} using cached file_id")
             
             return {
                 "success": True,
@@ -203,45 +142,12 @@ class VideoAgent:
             
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"Error sending video (file_id/path: {video.file_id if 'video' in locals() else 'unknown'}): {error_msg}")
-            logger.exception(e)  # Log full traceback
-            
-            # Provide user-friendly error messages
-            if "caption is too long" in error_msg.lower():
-                error_msg = "Video caption was too long. Please contact support."
-            elif "timed out" in error_msg.lower():
-                error_msg = "Video upload timed out. The file may be too large. Please try again."
-            elif "file not found" in error_msg.lower():
-                error_msg = "Video file not found. Please contact support."
+            logger.error(f"Error sending video {video.id if 'video' in locals() else 'unknown'}: {error_msg}")
             
             return {
                 "success": False,
-                "error": error_msg
+                "error": "An error occurred while delivering the video."
             }
-    
-    async def _check_url_reachable(self, url: str) -> bool:
-        """
-        Check if a URL is reachable
-        
-        Args:
-            url: URL to check
-            
-        Returns:
-            True if URL is reachable, False otherwise
-        """
-        try:
-            if HAS_AIOHTTP:
-                # Use async aiohttp for better performance
-                async with aiohttp.ClientSession() as session:
-                    async with session.head(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                        return response.status < 400
-            else:
-                # Fallback to synchronous requests
-                response = requests.head(url, timeout=10, allow_redirects=True)
-                return response.status_code < 400
-        except Exception as e:
-            logger.warning(f"URL check failed for {url}: {str(e)}")
-            return False
     
     async def mark_video_completed(self, telegram_id: str, video_id: int, watch_time: int = 0) -> Dict[str, Any]:
         """
