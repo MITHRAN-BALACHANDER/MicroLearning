@@ -1,0 +1,91 @@
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Local-dev and CI environment for MicroLearning Platform
+# ---------------------------------------------------------------------------
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: microlearning
+      POSTGRES_USER: ml_user
+      POSTGRES_PASSWORD: ml_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ml_user -d microlearning"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redis_pass
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_pass", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Python Bot Service ─────────────────────────────────────────────────────
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    env_file: Agents/.env
+    environment:
+      DATABASE_URL: postgresql://ml_user:ml_pass@postgres:5432/microlearning
+      REDIS_URL: redis://:redis_pass@redis:6379/0
+      CHROMA_PERSIST_DIRECTORY: /app/data/chroma_db
+      VIDEOS_DIR: /app/data/videos
+      # telegram | whatsapp | both - overrides the value in Agents/.env
+      MESSAGING_PLATFORM: ${MESSAGING_PLATFORM:-telegram}
+      WEBHOOK_HOST: 0.0.0.0
+      WEBHOOK_PORT: "8000"
+    volumes:
+      - bot_videos:/app/data/videos
+      - bot_docs:/app/data/documents
+      - bot_chroma:/app/data/chroma_db
+      - bot_logs:/app/logs
+    ports:
+      - "5000:5000"   # Flask admin dashboard
+      - "8000:8000"   # WhatsApp webhook + /health
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Next.js Admin Web App ──────────────────────────────────────────────────
+  web:
+    build:
+      context: Agents/nextjs
+      dockerfile: Dockerfile
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql://ml_user:ml_pass@postgres:5432/microlearning
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: change-me-in-production
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  bot_videos:
+  bot_docs:
+  bot_chroma:
+  bot_logs:

@@ -8,7 +8,10 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import json
 
-from database.models import Base, User, Video, VideoProgress, Question, QuizAttempt, Document, UserSession
+from database.models import (
+    Base, User, Video, VideoMedia, VideoProgress, Question, QuizAttempt, Document, UserSession
+)
+from database.migrations import ensure_schema
 from config.settings import DATABASE_URL
 
 
@@ -18,8 +21,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db():
-    """Initialize database tables"""
+    """
+    Initialize database tables and apply additive schema upgrades.
+
+    Returns the list of columns added, so callers can report the upgrade.
+    """
     Base.metadata.create_all(bind=engine)
+    return ensure_schema(engine)
 
 
 @contextmanager
@@ -33,31 +41,95 @@ def get_db():
 
 
 # User Operations
-def get_or_create_user(telegram_id: str, username: str = None, first_name: str = None, last_name: str = None) -> User:
-    """Get or create a user"""
+def get_or_create_user(telegram_id: str, username: str = None, first_name: str = None,
+                       last_name: str = None, platform: str = "telegram",
+                       platform_user_id: str = None, touch_inbound: bool = False) -> User:
+    """
+    Get or create a user.
+
+    `telegram_id` is the platform-qualified key (bare chat id for Telegram,
+    "whatsapp:<wa_id>" for WhatsApp) - see messaging.UserRef.key.
+    """
     with get_db() as db:
         user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        now = datetime.utcnow()
+
         if not user:
             user = User(
                 telegram_id=telegram_id,
+                platform=platform,
+                platform_user_id=platform_user_id or telegram_id,
                 username=username,
                 first_name=first_name,
-                last_name=last_name
+                last_name=last_name,
+                last_inbound_at=now if touch_inbound else None
             )
             db.add(user)
             db.commit()
             db.refresh(user)
         else:
-            # Update last active
-            user.last_active = datetime.utcnow()
+            # Update last active and backfill any profile details we now know
+            user.last_active = now
+            if touch_inbound:
+                user.last_inbound_at = now
+            if not user.platform:
+                user.platform = platform
+            if not user.platform_user_id:
+                user.platform_user_id = platform_user_id or telegram_id
+            if username and not user.username:
+                user.username = username
+            if first_name and not user.first_name:
+                user.first_name = first_name
+            if last_name and not user.last_name:
+                user.last_name = last_name
             db.commit()
+            db.refresh(user)
         return user
 
 
 def get_user_by_telegram_id(telegram_id: str) -> Optional[User]:
-    """Get user by telegram ID"""
+    """Get user by platform-qualified key (kept for backwards compatibility)"""
     with get_db() as db:
         return db.query(User).filter(User.telegram_id == telegram_id).first()
+
+
+def get_user_by_ref(ref) -> Optional[User]:
+    """Get a user from a messaging.UserRef"""
+    return get_user_by_telegram_id(ref.key)
+
+
+def get_or_create_user_from_ref(ref, username: str = None, first_name: str = None,
+                               last_name: str = None, touch_inbound: bool = True) -> User:
+    """Get or create a user from a messaging.UserRef"""
+    return get_or_create_user(
+        telegram_id=ref.key,
+        username=username,
+        first_name=first_name,
+        last_name=last_name,
+        platform=ref.platform.value,
+        platform_user_id=ref.platform_user_id,
+        touch_inbound=touch_inbound
+    )
+
+
+def touch_user_inbound(telegram_id: str):
+    """Record that the user just messaged us (starts WhatsApp's 24h window)"""
+    with get_db() as db:
+        user = db.query(User).filter(User.telegram_id == telegram_id).first()
+        if user:
+            now = datetime.utcnow()
+            user.last_inbound_at = now
+            user.last_active = now
+            db.commit()
+
+
+def get_active_users(platform: str = None) -> List[User]:
+    """Get active users, optionally filtered to one platform"""
+    with get_db() as db:
+        query = db.query(User).filter(User.is_active == True)
+        if platform:
+            query = query.filter(User.platform == platform)
+        return query.all()
 
 
 # Video Operations
@@ -99,6 +171,12 @@ def get_next_video_for_user(user_id: int) -> Optional[Video]:
         return video
 
 
+def get_video_by_id(video_id: int) -> Optional[Video]:
+    """Get a single video by ID"""
+    with get_db() as db:
+        return db.query(Video).filter(Video.id == video_id).first()
+
+
 def mark_video_watched(user_id: int, video_id: int, completed: bool = True, watch_time: int = 0):
     """Mark a video as watched by a user"""
     with get_db() as db:
@@ -110,6 +188,77 @@ def mark_video_watched(user_id: int, video_id: int, completed: bool = True, watc
         )
         db.add(progress)
         db.commit()
+
+
+# Per-platform Media Operations (upload once, deliver many)
+def get_media_ref(video_id: int, platform: str) -> Optional[str]:
+    """
+    Get the reusable media reference for a video on a platform.
+
+    Falls back to the legacy videos.file_id column for Telegram so videos
+    uploaded before multi-platform support still deliver.
+    """
+    with get_db() as db:
+        record = db.query(VideoMedia).filter(
+            VideoMedia.video_id == video_id,
+            VideoMedia.platform == platform,
+            VideoMedia.is_active == True
+        ).first()
+
+        if record:
+            if record.expires_at and record.expires_at <= datetime.utcnow():
+                return None
+            return record.media_ref
+
+        if platform == "telegram":
+            video = db.query(Video).filter(Video.id == video_id).first()
+            return video.file_id if video else None
+
+        return None
+
+
+def set_media_ref(video_id: int, platform: str, media_ref: str,
+                  file_size_bytes: int = None, ttl_days: int = None) -> VideoMedia:
+    """Store (or refresh) a platform media reference for a video"""
+    with get_db() as db:
+        record = db.query(VideoMedia).filter(
+            VideoMedia.video_id == video_id,
+            VideoMedia.platform == platform
+        ).first()
+
+        expires_at = datetime.utcnow() + timedelta(days=ttl_days) if ttl_days else None
+
+        if record:
+            record.media_ref = media_ref
+            record.file_size_bytes = file_size_bytes
+            record.uploaded_at = datetime.utcnow()
+            record.expires_at = expires_at
+            record.is_active = True
+        else:
+            record = VideoMedia(
+                video_id=video_id,
+                platform=platform,
+                media_ref=media_ref,
+                file_size_bytes=file_size_bytes,
+                expires_at=expires_at
+            )
+            db.add(record)
+
+        # Keep the legacy column in sync so older code paths keep working
+        if platform == "telegram":
+            video = db.query(Video).filter(Video.id == video_id).first()
+            if video:
+                video.file_id = media_ref
+
+        db.commit()
+        db.refresh(record)
+        return record
+
+
+def list_media_refs(video_id: int) -> List[VideoMedia]:
+    """All platform media references for a video"""
+    with get_db() as db:
+        return db.query(VideoMedia).filter(VideoMedia.video_id == video_id).all()
 
 
 # Question Operations

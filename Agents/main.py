@@ -1,29 +1,45 @@
 """
-Main Telegram Bot - MicroLearning with Multiple Agno Agents
+Main entry point - MicroLearning with Multiple Agno Agents
+
+Which messaging channels run is decided by the MESSAGING_PLATFORM environment
+flag (telegram | whatsapp | both). All learner-facing behaviour lives in
+CommandDispatcher, so both channels behave identically.
 """
-import asyncio
-import warnings
 import os
+import sys
+import time
+import warnings
 
 # Suppress warnings for cleaner logs
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', message='resume_download')
 os.environ['ANONYMIZED_TELEMETRY'] = 'False'  # Disable ChromaDB telemetry
 
-from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes
-)
 from loguru import logger
-import sys
 
-from config.settings import TELEGRAM_BOT_TOKEN, LOG_FILE, LOG_LEVEL
-from database.operations import init_db, get_or_create_user, get_user_progress
-from agents.orchestrator import AgentOrchestrator, AgentType
+from config.settings import (
+    LOG_FILE,
+    LOG_LEVEL,
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_ENABLED,
+    WHATSAPP_ENABLED,
+    ENABLED_PLATFORMS,
+    WEBHOOK_HOST,
+    WEBHOOK_PORT,
+    WHATSAPP_WEBHOOK_PATH,
+)
+from database.operations import init_db
+from agents.orchestrator import AgentOrchestrator
+from dispatcher import CommandDispatcher, Profile
+from messaging.base import Platform, UserRef
+from messaging.factory import (
+    PlatformConfigError,
+    build_clients,
+    enabled_platforms,
+    validate_platform_config,
+)
+from messaging.router import MessagingRouter
+from messaging.worker import AsyncWorker
 
 # Configure logging
 logger.remove()
@@ -32,280 +48,210 @@ logger.add(LOG_FILE, rotation="1 day", retention="7 days", level=LOG_LEVEL)
 
 
 class MicroLearningBot:
-    """Main bot class integrating all Agno agents"""
-    
+    """Boots the agents and every messaging channel enabled by the flag."""
+
     def __init__(self):
-        self.app = None
+        self.router = None
         self.orchestrator = None
+        self.dispatcher = None
+        self.telegram_app = None
+        self.worker = None
         logger.info("Initializing MicroLearning Bot...")
-    
-    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /start command"""
-        user = update.effective_user
-        telegram_id = str(user.id)
-        
-        # Register user
-        db_user = get_or_create_user(
-            telegram_id=telegram_id,
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name
+
+    # -- setup ------------------------------------------------------------
+
+    def build(self):
+        """Create the messaging clients, agents, and dispatcher."""
+        logger.info(f"Enabled platforms: {', '.join(ENABLED_PLATFORMS)}")
+
+        ok, problems = validate_platform_config()
+        for problem in problems:
+            logger.warning(problem)
+        fatal = [p for p in problems if "APP_SECRET" not in p]
+        if fatal:
+            raise PlatformConfigError(
+                "Messaging configuration is incomplete:\n  - " + "\n  - ".join(fatal)
+            )
+
+        # python-telegram-bot owns its own Bot instance, so the Application is
+        # built here and its bot is wrapped for the router; other platforms are
+        # built by the factory.
+        clients = build_clients(
+            [p for p in enabled_platforms() if p is not Platform.TELEGRAM]
         )
-        
-        welcome_message = f"""
-Welcome to MicroLearning Bot, {user.first_name}!
 
-I'm powered by multiple AI agents to help you learn effectively:
+        if TELEGRAM_ENABLED:
+            from telegram.ext import Application
 
-- Video Agent - Delivers daily learning videos
-- Question Agent - Tests your understanding
-- RAG Agent - Answers questions from company docs
+            from messaging.telegram_client import TelegramClient
 
-Available Commands:
-/video - Get today's learning video
-/quiz - Take a quiz on recent content
-/ask [question] - Ask about company manuals/SOPs
-/progress - View your learning progress
-/docs - List available documents
-/help - Show this help message
+            self.telegram_app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+            clients[Platform.TELEGRAM] = TelegramClient(self.telegram_app.bot)
 
-Let's start your learning journey!
-"""
-        
-        await update.message.reply_text(welcome_message)
-        logger.info(f"New user registered: {telegram_id}")
-    
-    async def video_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /video command - Send next video"""
-        telegram_id = str(update.effective_user.id)
-        
-        try:
-            await update.message.reply_text("Fetching your next video...")
-            
-            video_agent = await self.orchestrator.get_agent(AgentType.VIDEO)
-            result = await video_agent.send_daily_video(telegram_id)
-            
-            if not result["success"]:
-                error_msg = result.get('error', 'Unknown error occurred')
-                await update.message.reply_text(f"ERROR: {error_msg}")
-                logger.error(f"Video command failed for user {telegram_id}: {error_msg}")
-        except Exception as e:
-            logger.exception(f"Error in video_command for user {telegram_id}")
-            await update.message.reply_text("ERROR: An error occurred. Please try again later or contact support.")
-    
-    async def quiz_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /quiz command - Start quiz session"""
-        telegram_id = str(update.effective_user.id)
-        
-        try:
-            await update.message.reply_text("Preparing your quiz...")
-            
-            question_agent = await self.orchestrator.get_agent(AgentType.QUESTION)
-            result = await question_agent.start_quiz(telegram_id)
-            
-            if not result["success"]:
-                error_msg = result.get('error', 'Unable to start quiz')
-                await update.message.reply_text(f"ERROR: {error_msg}")
-                logger.error(f"Quiz command failed for user {telegram_id}: {error_msg}")
-        except Exception as e:
-            logger.exception(f"Error in quiz_command for user {telegram_id}")
-            await update.message.reply_text("ERROR: An error occurred. Please try again later.")
-    
-    async def ask_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /ask command - Query company documents"""
-        telegram_id = str(update.effective_user.id)
-        
-        # Get query from command arguments
-        query = ' '.join(context.args) if context.args else None
-        
-        if not query:
-            await update.message.reply_text(
-                "Please provide a question.\n\n"
-                "Example: /ask What is the vacation policy?"
-            )
-            return
-        
-        await update.message.reply_text("Searching company documents...")
-        
-        try:
-            rag_agent = await self.orchestrator.get_agent(AgentType.RAG)
-            result = await rag_agent.query_documents(query, telegram_id)
-            
-            if not result["success"]:
-                await update.message.reply_text(f"ERROR: {result.get('error', 'Unknown error occurred')}")
-            elif result.get("message"):
-                # If agent didn't send message, send it from here
-                logger.info(f"RAG query successful, message should have been sent by agent")
-        except Exception as e:
-            logger.error(f"Error in ask_command: {str(e)}")
-            await update.message.reply_text(
-                f"ERROR: Sorry, I encountered an error while searching the documents.\n\n"
-                f"Error: {str(e)}"
-            )
-    
-    async def progress_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /progress command - Show user progress"""
-        telegram_id = str(update.effective_user.id)
-        
-        video_agent = await self.orchestrator.get_agent(AgentType.VIDEO)
-        result = await video_agent.get_user_video_progress(telegram_id)
-        
-        if result["success"]:
-            progress = result["progress"]
-            message = f"""
-Your Learning Progress
+        self.router = MessagingRouter(clients)
+        self.orchestrator = AgentOrchestrator(self.router)
+        self.dispatcher = CommandDispatcher(self.orchestrator)
 
-Videos:
-  - Watched: {progress['watched_videos']}/{progress['total_videos']}
-  - Completion: {progress['completion_rate']:.1f}%
+        if TELEGRAM_ENABLED:
+            self.register_telegram_handlers()
 
-Quizzes:
-  - Questions Answered: {progress['total_questions_answered']}
-  - Average Score: {progress['average_score']}/10
+        logger.info(f"Agent status: {self.orchestrator.get_all_agents_status()}")
 
-Keep up the great work!
-"""
-            await update.message.reply_text(message)
-        else:
-            await update.message.reply_text(f"ERROR: {result['error']}")
-    
-    async def docs_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /docs command - List available documents"""
-        telegram_id = str(update.effective_user.id)
-        
-        rag_agent = await self.orchestrator.get_agent(AgentType.RAG)
-        await rag_agent.list_available_documents(telegram_id)
-    
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /help command"""
-        help_text = """
-MicroLearning Bot Help
+    # -- telegram ---------------------------------------------------------
 
-Commands:
+    def register_telegram_handlers(self):
+        """Thin Telegram handlers that delegate to the shared dispatcher."""
+        from telegram import Update
+        from telegram.ext import CommandHandler, MessageHandler, filters
 
-/video - Get your next learning video
+        logger.info("Registering Telegram command handlers...")
 
-/quiz - Start a quiz on recent content
-   After watching a video, test your understanding!
+        def command(name):
+            async def handler(update, context):
+                ref, profile = _telegram_identity(update)
+                args = " ".join(context.args) if context.args else ""
+                await self.dispatcher.run_command(ref, name, args, profile)
+            return handler
 
-/ask [question] - Ask about company documents
-   Example: /ask What is the remote work policy?
+        for name in ("start", "video", "quiz", "ask", "progress", "docs", "help"):
+            self.telegram_app.add_handler(CommandHandler(name, command(name)))
 
-/docs - List all available documents
-   See what manuals and SOPs are available
+        async def on_message(update, context):
+            ref, profile = _telegram_identity(update)
+            self.dispatcher.register_inbound(ref, profile)
+            await self.dispatcher.handle_text(ref, update.message.text, profile)
 
-/progress - View your learning statistics
-   Track your videos watched and quiz scores
+        self.telegram_app.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, on_message)
+        )
 
-How it works:
-
-1. Daily Videos - Request a video with /video
-2. Take Quizzes - After watching, use /quiz
-3. Ask Questions - Use /ask for company info
-
-Agents:
-- Video Agent - Manages content delivery
-- Question Agent - Creates and evaluates quizzes
-- RAG Agent - Answers questions from documents
-
-Need more help? Contact your administrator.
-"""
-        await update.message.reply_text(help_text)
-    
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle regular text messages"""
-        telegram_id = str(update.effective_user.id)
-        message_text = update.message.text
-        
-        # Check if user is in active quiz
-        question_agent = await self.orchestrator.get_agent(AgentType.QUESTION)
-        
-        if telegram_id in question_agent.active_quizzes:
-            # This is a quiz answer
-            await question_agent.evaluate_answer(telegram_id, message_text)
-        else:
-            # Route to orchestrator for dynamic handling
-            result = await self.orchestrator.process_message(telegram_id, message_text)
-            
-            if result["success"]:
-                agent_type = result["agent"]
-                await update.message.reply_text(
-                    f"I'll help you with that! Use the appropriate command:\n\n"
-                    f"- /video for videos\n"
-                    f"- /quiz for quizzes\n"
-                    f"- /ask [question] for documents\n"
-                    f"- /help for all commands"
+        async def on_error(update, context):
+            logger.error(f"Update {update} caused error {context.error}")
+            if update and getattr(update, "effective_message", None):
+                await update.effective_message.reply_text(
+                    "ERROR: An error occurred. Please try again or contact support."
                 )
-    
-    async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle errors"""
-        logger.error(f"Update {update} caused error {context.error}")
-        
-        if update and update.effective_message:
-            await update.effective_message.reply_text(
-                "ERROR: An error occurred. Please try again or contact support."
-            )
-    
-    async def post_init(self, application: Application):
-        """Initialize after bot starts"""
-        logger.info("Bot started successfully!")
-        
-        # Initialize orchestrator with bot
-        self.orchestrator = AgentOrchestrator(application.bot)
-        
-        # Log agent status
-        status = self.orchestrator.get_all_agents_status()
-        logger.info(f"Agent Status: {status}")
-    
+
+        self.telegram_app.add_error_handler(on_error)
+
+    # -- whatsapp ---------------------------------------------------------
+
+    def build_webhook_app(self):
+        """Create the Flask app serving the WhatsApp webhook and /health."""
+        from whatsapp_webhook import create_app
+
+        self.worker = AsyncWorker(name="whatsapp-worker").start()
+        return create_app(
+            dispatcher=self.dispatcher,
+            worker=self.worker,
+            orchestrator=self.orchestrator,
+        )
+
+    # -- run --------------------------------------------------------------
+
     def run(self):
-        """Run the bot"""
+        """Start every enabled channel."""
         try:
-            # Validate environment
-            logger.info("Validating environment...")
-            if not TELEGRAM_BOT_TOKEN:
-                logger.error("TELEGRAM_BOT_TOKEN not found in environment!")
-                raise ValueError("Missing TELEGRAM_BOT_TOKEN. Please set it in .env file.")
-            
-            # Initialize database
             logger.info("Initializing database...")
             init_db()
             logger.info("Database initialized successfully")
-            
-            # Create application
-            logger.info("Creating Telegram application...")
-            self.app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-            
-            # Register handlers
-            logger.info("Registering command handlers...")
-            self.app.add_handler(CommandHandler("start", self.start_command))
-            self.app.add_handler(CommandHandler("video", self.video_command))
-            self.app.add_handler(CommandHandler("quiz", self.quiz_command))
-            self.app.add_handler(CommandHandler("ask", self.ask_command))
-            self.app.add_handler(CommandHandler("progress", self.progress_command))
-            self.app.add_handler(CommandHandler("docs", self.docs_command))
-            self.app.add_handler(CommandHandler("help", self.help_command))
-            
-            # Message handler
-            self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-            
-            # Error handler
-            self.app.add_error_handler(self.error_handler)
-            
-            # Post init
-            self.app.post_init = self.post_init
-            
-            logger.info("="*60)
+
+            self.build()
+
+            logger.info("=" * 60)
             logger.info("MicroLearning Bot is READY!")
-            logger.info("="*60)
-            logger.info("Starting bot...")
-            self.app.run_polling(allowed_updates=Update.ALL_TYPES)
-            
+            logger.info(f"Channels: {', '.join(ENABLED_PLATFORMS)}")
+            logger.info("=" * 60)
+
+            # The HTTP server always runs: it serves /health for container and
+            # deploy probes, and the WhatsApp callback when that channel is on.
+            if TELEGRAM_ENABLED:
+                self._serve_http_in_background()
+                self._run_telegram_polling()
+            else:
+                self._serve_http_in_foreground()
+
+        except PlatformConfigError as e:
+            logger.error(str(e))
+            raise
         except KeyboardInterrupt:
             logger.info("\nBot stopped by user")
         except Exception as e:
-            logger.error(f"Failed to start bot: {str(e)}")
+            logger.error(f"Failed to start: {str(e)}")
             logger.exception(e)
             raise
+        finally:
+            if self.worker is not None:
+                self.worker.stop()
+
+    def _log_http_endpoints(self):
+        logger.info(f"HTTP server on {WEBHOOK_HOST}:{WEBHOOK_PORT} (health: /health)")
+        if WHATSAPP_ENABLED:
+            logger.info(
+                f"WhatsApp callback URL: https://<your-public-domain>{WHATSAPP_WEBHOOK_PATH} "
+                f"-> {WEBHOOK_HOST}:{WEBHOOK_PORT}{WHATSAPP_WEBHOOK_PATH}"
+            )
+
+    def _warm_up_agents(self):
+        """
+        Build the agents in the background once the server is listening.
+
+        Loading sentence-transformers/torch takes minutes on a cold start, so
+        this happens after the port is bound rather than before: Meta's webhook
+        verification and health probes stay responsive, and the first learner
+        message does not pay the full cost.
+        """
+        import threading
+
+        def warm():
+            logger.info("Warming up agents in the background...")
+            started = time.time()
+            self.orchestrator.warm_up()
+            logger.info(f"Agents ready ({time.time() - started:.0f}s)")
+
+        threading.Thread(target=warm, name="agent-warmup", daemon=True).start()
+
+    def _run_telegram_polling(self):
+        from telegram import Update
+
+        logger.info("Starting Telegram polling...")
+        self.telegram_app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    def _serve_http_in_foreground(self):
+        from whatsapp_webhook import run_webhook_server
+
+        app = self.build_webhook_app()
+        self._log_http_endpoints()
+        self._warm_up_agents()
+        run_webhook_server(app, WEBHOOK_HOST, WEBHOOK_PORT)
+
+    def _serve_http_in_background(self):
+        """Run the HTTP server on a daemon thread alongside Telegram polling."""
+        import threading
+
+        from whatsapp_webhook import run_webhook_server
+
+        app = self.build_webhook_app()
+        threading.Thread(
+            target=run_webhook_server,
+            args=(app, WEBHOOK_HOST, WEBHOOK_PORT),
+            name="webhook-server",
+            daemon=True,
+        ).start()
+        self._log_http_endpoints()
+        self._warm_up_agents()
+
+
+def _telegram_identity(update):
+    """Build a UserRef + Profile from a Telegram update."""
+    user = update.effective_user
+    ref = UserRef(Platform.TELEGRAM, str(user.id))
+    profile = Profile(
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+    )
+    return ref, profile
 
 
 if __name__ == "__main__":

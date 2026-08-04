@@ -6,10 +6,9 @@ from datetime import datetime
 import json
 import asyncio
 from loguru import logger
-import google.generativeai as genai
 
 from database.operations import (
-    get_user_by_telegram_id,
+    get_user_by_ref,
     get_questions_for_video,
     add_question,
     save_quiz_attempt,
@@ -17,6 +16,7 @@ from database.operations import (
 )
 from database.models import Video, VideoProgress
 from config.settings import GEMINI_API_KEY, QUESTION_AGENT_PROMPT
+from messaging.base import UserRef
 
 
 class QuestionAgent:
@@ -27,15 +27,23 @@ class QuestionAgent:
     - Rating and evaluating answers
     - Providing feedback
     """
-    
-    def __init__(self, telegram_bot):
-        self.bot = telegram_bot
+
+    def __init__(self, router):
+        # Imported here so the module stays cheap to import for tests/tooling
+        import google.generativeai as genai
+
+        self.router = router
         self.name = "QuestionAgent"
         self.description = "Generates and evaluates quiz questions"
         genai.configure(api_key=GEMINI_API_KEY)
         self.model = genai.GenerativeModel('gemini-2.5-flash')
-        self.active_quizzes = {}  # telegram_id -> quiz_state
+        # Keyed by UserRef.key so a Telegram and a WhatsApp learner can never
+        # collide even if their raw platform ids happen to match.
+        self.active_quizzes = {}
         logger.info(f"Initialized {self.name}")
+
+    def has_active_quiz(self, ref: UserRef) -> bool:
+        return ref.key in self.active_quizzes
     
     async def generate_questions_from_video(self, video_id: int, num_questions: int = 3) -> List[Dict[str, Any]]:
         """
@@ -138,18 +146,18 @@ class QuestionAgent:
             logger.error(f"Error generating questions: {str(e)}")
             return []
     
-    async def start_quiz(self, telegram_id: str) -> Dict[str, Any]:
+    async def start_quiz(self, ref: UserRef) -> Dict[str, Any]:
         """
         Start a quiz session for a user based on their last watched video
-        
+
         Args:
-            telegram_id: User's Telegram ID
-            
+            ref: UserRef identifying the learner and platform
+
         Returns:
             Dict with quiz status and first question
         """
         try:
-            user = get_user_by_telegram_id(telegram_id)
+            user = get_user_by_ref(ref)
             if not user:
                 return {"success": False, "error": "User not found"}
             
@@ -176,24 +184,24 @@ class QuestionAgent:
                 }
             
             # Initialize quiz session
-            self.active_quizzes[telegram_id] = {
+            self.active_quizzes[ref.key] = {
                 "video_id": video_id,
                 "questions": questions,
                 "current_index": 0,
                 "answers": [],
                 "started_at": datetime.utcnow()
             }
-            
+
             # Send first question
             first_question = questions[0]
-            await self.bot.send_message(
-                chat_id=telegram_id,
-                text=f"Quiz Time!\n\n"
-                     f"Question 1/{len(questions)}:\n\n"
-                     f"{first_question['question']}\n\n"
-                     f"Please type your answer:"
+            await self.router.send_message(
+                ref,
+                f"Quiz Time!\n\n"
+                f"Question 1/{len(questions)}:\n\n"
+                f"{first_question['question']}\n\n"
+                f"Please type your answer:"
             )
-            
+
             return {
                 "success": True,
                 "message": "Quiz started",
@@ -204,25 +212,25 @@ class QuestionAgent:
             logger.error(f"Error starting quiz: {str(e)}")
             return {"success": False, "error": str(e)}
     
-    async def evaluate_answer(self, telegram_id: str, answer: str) -> Dict[str, Any]:
+    async def evaluate_answer(self, ref: UserRef, answer: str) -> Dict[str, Any]:
         """
         Evaluate a user's answer using AI and provide rating/feedback
-        
+
         Args:
-            telegram_id: User's Telegram ID
+            ref: UserRef identifying the learner and platform
             answer: User's answer text
-            
+
         Returns:
             Dict with evaluation results
         """
         try:
-            if telegram_id not in self.active_quizzes:
+            if ref.key not in self.active_quizzes:
                 return {
                     "success": False,
                     "error": "No active quiz. Start one with /quiz"
                 }
-            
-            quiz_state = self.active_quizzes[telegram_id]
+
+            quiz_state = self.active_quizzes[ref.key]
             current_q = quiz_state["questions"][quiz_state["current_index"]]
             
             # Evaluate using AI
@@ -269,7 +277,7 @@ class QuestionAgent:
             evaluation = json.loads(content)
             
             # Save quiz attempt
-            user = get_user_by_telegram_id(telegram_id)
+            user = get_user_by_ref(ref)
             save_quiz_attempt(
                 user_id=user.id,
                 question_id=current_q["id"],
@@ -292,16 +300,16 @@ class QuestionAgent:
             if quiz_state["current_index"] < len(quiz_state["questions"]):
                 # Send next question
                 next_q = quiz_state["questions"][quiz_state["current_index"]]
-                await self.bot.send_message(
-                    chat_id=telegram_id,
-                    text=f"Rating: {evaluation['rating']}/10\n\n"
-                         f"Feedback: {evaluation['feedback']}\n\n"
-                         f"───────────\n\n"
-                         f"Question {quiz_state['current_index'] + 1}/{len(quiz_state['questions'])}:\n\n"
-                         f"{next_q['question']}\n\n"
-                         f"Please type your answer:"
+                await self.router.send_message(
+                    ref,
+                    f"Rating: {evaluation['rating']}/10\n\n"
+                    f"Feedback: {evaluation['feedback']}\n\n"
+                    f"───────────\n\n"
+                    f"Question {quiz_state['current_index'] + 1}/{len(quiz_state['questions'])}:\n\n"
+                    f"{next_q['question']}\n\n"
+                    f"Please type your answer:"
                 )
-                
+
                 return {
                     "success": True,
                     "evaluation": evaluation,
@@ -311,19 +319,19 @@ class QuestionAgent:
                 # Quiz completed
                 avg_rating = sum(a["evaluation"]["rating"] for a in quiz_state["answers"]) / len(quiz_state["answers"])
                 
-                await self.bot.send_message(
-                    chat_id=telegram_id,
-                    text=f"Rating: {evaluation['rating']}/10\n\n"
-                         f"Feedback: {evaluation['feedback']}\n\n"
-                         f"───────────\n\n"
-                         f"Quiz Completed!\n\n"
-                         f"Average Score: {avg_rating:.1f}/10\n\n"
-                         f"Great job! Use /progress to see your overall progress."
+                await self.router.send_message(
+                    ref,
+                    f"Rating: {evaluation['rating']}/10\n\n"
+                    f"Feedback: {evaluation['feedback']}\n\n"
+                    f"───────────\n\n"
+                    f"Quiz Completed!\n\n"
+                    f"Average Score: {avg_rating:.1f}/10\n\n"
+                    f"Great job! Use /progress to see your overall progress."
                 )
-                
+
                 # Clean up quiz state
-                del self.active_quizzes[telegram_id]
-                
+                del self.active_quizzes[ref.key]
+
                 return {
                     "success": True,
                     "evaluation": evaluation,

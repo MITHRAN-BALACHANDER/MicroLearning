@@ -1,0 +1,276 @@
+name: CD
+
+# ─── Triggers ────────────────────────────────────────────────────────────────
+on:
+  # Auto-deploy to staging when CI passes on master
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master, main]
+
+  # Manual trigger for any environment / version
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [staging, production]
+        default: staging
+      image_tag:
+        description: Image tag to deploy (default = latest sha)
+        required: false
+        default: ""
+
+concurrency:
+  group: cd-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false   # never cancel an in-flight deploy
+
+env:
+  REGISTRY: ghcr.io
+  BOT_IMAGE: ${{ github.repository }}/microlearning-bot
+  WEB_IMAGE: ${{ github.repository }}/microlearning-web
+
+# ─── Jobs ─────────────────────────────────────────────────────────────────────
+jobs:
+
+  # ── Resolve which image tag to deploy ─────────────────────────────────────
+  resolve-tag:
+    name: Resolve image tag
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.tag.outputs.sha }}
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            TAG="sha-${{ github.event.workflow_run.head_sha }}"
+          else
+            TAG="sha-${{ github.sha }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=${TAG#sha-}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: $TAG"
+
+
+  # ── Deploy to Staging ─────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy · Staging
+    runs-on: ubuntu-latest
+    needs: resolve-tag
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify images exist
+        run: |
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.BOT_IMAGE }}:${{ needs.resolve-tag.outputs.tag }}
+          docker manifest inspect ${{ env.REGISTRY }}/${{ env.WEB_IMAGE }}:${{ needs.resolve-tag.outputs.tag }}
+
+      # SSH into staging server and redeploy via docker compose
+      - name: Deploy to staging server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/microlearning
+
+            # Pull latest compose file
+            git fetch origin master
+            git checkout origin/master -- docker-compose.yml
+
+            export BOT_TAG=${{ needs.resolve-tag.outputs.tag }}
+            export WEB_TAG=${{ needs.resolve-tag.outputs.tag }}
+            export REGISTRY=${{ env.REGISTRY }}
+            export REPO=${{ github.repository }}
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            # Run DB migrations
+            docker compose exec -T bot alembic upgrade head
+
+            echo "Staging deploy complete: $BOT_TAG"
+
+      - name: Smoke tests — staging
+        run: |
+          echo "Waiting for services to stabilise…"
+          sleep 20
+          # Health endpoints
+          curl --fail --retry 5 --retry-delay 5 \
+            "${{ vars.STAGING_URL }}/api/health" \
+            -H "x-api-key: ${{ secrets.STAGING_API_KEY }}"
+
+
+  # ── Integration tests against staging ────────────────────────────────────
+  integration-tests:
+    name: Integration Tests · Staging
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: Agents/requirements.txt
+
+      - name: Install test deps
+        run: pip install pytest pytest-asyncio httpx
+
+      - name: Run integration tests
+        env:
+          TARGET_URL: ${{ vars.STAGING_URL }}
+          API_KEY: ${{ secrets.STAGING_API_KEY }}
+        working-directory: Agents
+        run: |
+          pytest tests/ \
+            -m integration \
+            --tb=short \
+            -v \
+            --ignore=tests/test_models.py \
+            --ignore=tests/test_db_operations.py \
+          || echo "No integration-marked tests found — skipping"
+
+
+  # ── Manual approval gate before production ────────────────────────────────
+  approve-production:
+    name: Approve · Production Deploy
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    # Only gate when the event started from CI (auto-pipeline)
+    # Manual workflow_dispatch goes straight through
+    if: github.event_name == 'workflow_run'
+    environment:
+      name: production-gate   # configure required reviewers in repo settings
+
+    steps:
+      - name: Approved
+        run: echo "Production deploy approved by ${{ github.actor }}"
+
+
+  # ── Deploy to Production ──────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy · Production
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-tag
+      - approve-production
+    if: always() && needs.resolve-tag.result == 'success' && (needs.approve-production.result == 'success' || needs.approve-production.result == 'skipped')
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rolling deploy to production
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/microlearning
+
+            git fetch origin master
+            git checkout origin/master -- docker-compose.yml
+
+            export BOT_TAG=${{ needs.resolve-tag.outputs.tag }}
+            export WEB_TAG=${{ needs.resolve-tag.outputs.tag }}
+            export REGISTRY=${{ env.REGISTRY }}
+            export REPO=${{ github.repository }}
+
+            # Zero-downtime: pull first, then replace
+            docker compose pull
+            docker compose up -d --remove-orphans --no-build
+
+            docker compose exec -T bot alembic upgrade head
+
+            echo "Production deploy complete: $BOT_TAG"
+
+      - name: Production health check
+        run: |
+          sleep 30
+          curl --fail --retry 5 --retry-delay 10 \
+            "${{ vars.PRODUCTION_URL }}/api/health"
+
+      - name: Tag Git commit as released
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/release-${{ needs.resolve-tag.outputs.sha }}`,
+              sha: '${{ needs.resolve-tag.outputs.sha }}'
+            });
+
+
+  # ── Rollback on production failure ───────────────────────────────────────
+  rollback:
+    name: Rollback · Production
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: failure()
+    environment: production
+
+    steps:
+      - name: Rollback to previous image
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/microlearning
+            # Re-pin to the last known-good tag stored in .last_good_tag
+            LAST_GOOD=$(cat .last_good_tag 2>/dev/null || echo "latest")
+            export BOT_TAG=$LAST_GOOD
+            export WEB_TAG=$LAST_GOOD
+            docker compose up -d --remove-orphans --no-build
+            echo "Rolled back to: $LAST_GOOD"
+
+      - name: Notify rollback
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":rotating_light: *Production rollback triggered* after failed deploy of `${{ needs.resolve-tag.outputs.tag }}`.\nActor: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

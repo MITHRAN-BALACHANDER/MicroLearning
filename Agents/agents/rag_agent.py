@@ -5,17 +5,14 @@ from typing import Dict, Any, List, Optional
 import os
 import asyncio
 from loguru import logger
-import google.generativeai as genai
-import chromadb
-from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
 
-from database.operations import get_active_documents, get_user_by_telegram_id
+from database.operations import get_active_documents, get_user_by_ref
 from config.settings import (
-    GEMINI_API_KEY, 
-    CHROMA_PERSIST_DIRECTORY, 
+    GEMINI_API_KEY,
+    CHROMA_PERSIST_DIRECTORY,
     RAG_AGENT_PROMPT
 )
+from messaging.base import UserRef
 
 
 class RAGAgent:
@@ -27,13 +24,20 @@ class RAGAgent:
     - Document retrieval and summarization
     """
     
-    def __init__(self, telegram_bot):
-        self.bot = telegram_bot
+    def __init__(self, router):
+        # chromadb / sentence-transformers cost seconds to import, so they are
+        # loaded when an agent is actually constructed rather than at import time.
+        import chromadb
+        import google.generativeai as genai
+        from chromadb.config import Settings
+        from sentence_transformers import SentenceTransformer
+
+        self.router = router
         self.name = "RAGAgent"
         self.description = "Provides information from company documents"
         genai.configure(api_key=GEMINI_API_KEY)
         self.model = genai.GenerativeModel('gemini-2.5-flash')
-        
+
         # Initialize ChromaDB with persistence
         self.chroma_client = chromadb.PersistentClient(
             path=CHROMA_PERSIST_DIRECTORY,
@@ -106,26 +110,26 @@ class RAGAgent:
             logger.error(f"Error indexing document: {str(e)}")
             return {"success": False, "error": str(e)}
     
-    async def query_documents(self, query: str, telegram_id: str, 
+    async def query_documents(self, query: str, ref: UserRef,
                              n_results: int = 5) -> Dict[str, Any]:
         """
         Query the document database and generate an answer
-        
+
         Args:
             query: User's question
-            telegram_id: User's Telegram ID
+            ref: UserRef identifying the learner and platform
             n_results: Number of similar chunks to retrieve
-            
+
         Returns:
             Dict with answer and sources
         """
         try:
-            user = get_user_by_telegram_id(telegram_id)
+            user = get_user_by_ref(ref)
             if not user:
                 return {"success": False, "error": "User not found"}
-            
+
             # Track query
-            self.active_queries[telegram_id] = {
+            self.active_queries[ref.key] = {
                 "query": query,
                 "timestamp": None
             }
@@ -226,13 +230,11 @@ Provide a clear answer citing the source documents."""
                 f"Sources:\n" + "\n".join([f"- {s}" for s in sources])
             )
             
-            # Send answer to user (without parse_mode to avoid markdown errors)
+            # Send answer to user (plain text; the router splits long answers
+            # into platform-sized chunks)
             try:
-                await self.bot.send_message(
-                    chat_id=telegram_id,
-                    text=message_text
-                )
-                logger.info(f"Answered query for user {telegram_id}")
+                await self.router.send_message(ref, message_text)
+                logger.info(f"Answered query for user {ref}")
             except Exception as send_error:
                 logger.error(f"Error sending message: {str(send_error)}")
                 # Return the answer even if sending fails
@@ -249,14 +251,14 @@ Provide a clear answer citing the source documents."""
             logger.error(f"Error querying documents: {str(e)}")
             return {"success": False, "error": str(e)}
     
-    async def summarize_document(self, doc_id: int, telegram_id: str) -> Dict[str, Any]:
+    async def summarize_document(self, doc_id: int, ref: UserRef) -> Dict[str, Any]:
         """
         Provide a summary of a specific document
-        
+
         Args:
             doc_id: Document ID
-            telegram_id: User's Telegram ID
-            
+            ref: UserRef identifying the learner and platform
+
         Returns:
             Dict with summary
         """
@@ -303,12 +305,12 @@ Provide a clear answer citing the source documents."""
             summary = response.text
             
             # Send summary
-            await self.bot.send_message(
-                chat_id=telegram_id,
-                text=f"Document Summary\n\n"
-                     f"Title: {doc_title}\n"
-                     f"Type: {doc_type}\n\n"
-                     f"{summary}"
+            await self.router.send_message(
+                ref,
+                f"Document Summary\n\n"
+                f"Title: {doc_title}\n"
+                f"Type: {doc_type}\n\n"
+                f"{summary}"
             )
             
             return {
@@ -321,23 +323,23 @@ Provide a clear answer citing the source documents."""
             logger.error(f"Error summarizing document: {str(e)}")
             return {"success": False, "error": str(e)}
     
-    async def list_available_documents(self, telegram_id: str) -> Dict[str, Any]:
+    async def list_available_documents(self, ref: UserRef) -> Dict[str, Any]:
         """
         List all available documents in the system
-        
+
         Args:
-            telegram_id: User's Telegram ID
-            
+            ref: UserRef identifying the learner and platform
+
         Returns:
             Dict with document list
         """
         try:
             documents = get_active_documents()
-            
+
             if not documents:
-                await self.bot.send_message(
-                    chat_id=telegram_id,
-                    text="No documents are currently available in the system."
+                await self.router.send_message(
+                    ref,
+                    "No documents are currently available in the system."
                 )
                 return {"success": True, "documents": []}
             
@@ -357,12 +359,9 @@ Provide a clear answer citing the source documents."""
                     message += f"  - {doc.title} (ID: {doc.id})\n"
                 message += "\n"
             
-            message += "Use `/ask [your question]` to search these documents!"
-            
-            await self.bot.send_message(
-                chat_id=telegram_id,
-                text=message
-            )
+            message += "Use /ask [your question] to search these documents!"
+
+            await self.router.send_message(ref, message)
             
             return {
                 "success": True,
