@@ -274,3 +274,107 @@ class TestConstruction:
         assert client.platform is Platform.WHATSAPP
         assert client.max_video_bytes == 16 * 1024 * 1024
         assert client.max_caption_chars == 1024
+
+
+@pytest.mark.asyncio
+class TestSendChoices:
+    """
+    Meta offers two interactive shapes with different limits, and rejects the
+    whole message if a field is too long. These pin the exact payloads.
+    """
+
+    def _capture(self):
+        captured = {}
+
+        def handler(request):
+            captured["body"] = json.loads(request.content)
+            return httpx.Response(200, json=SEND_OK)
+
+        return captured, handler
+
+    async def test_three_or_fewer_choices_become_reply_buttons(self):
+        from messaging.base import Choice
+
+        captured, handler = self._capture()
+        client = make_client(handler)
+
+        result = await client.send_choices(
+            "15551234567",
+            "Finished watching?",
+            [Choice("quiz", "Take the quiz"), Choice("video", "Next video")],
+        )
+
+        assert result.success is True
+        body = captured["body"]
+        assert body["type"] == "interactive"
+        assert body["interactive"]["type"] == "button"
+        assert body["interactive"]["body"] == {"text": "Finished watching?"}
+        assert body["interactive"]["action"]["buttons"] == [
+            {"type": "reply", "reply": {"id": "quiz", "title": "Take the quiz"}},
+            {"type": "reply", "reply": {"id": "video", "title": "Next video"}},
+        ]
+
+    async def test_more_than_three_choices_become_a_list(self):
+        from messaging.base import Choice
+
+        captured, handler = self._capture()
+        client = make_client(handler)
+
+        await client.send_choices(
+            "15551234567",
+            "What would you like to do?",
+            [
+                Choice("video", "Next video", "Your next lesson"),
+                Choice("quiz", "Take a quiz"),
+                Choice("ask", "Ask a question"),
+                Choice("progress", "My progress"),
+            ],
+            list_label="Show options",
+        )
+
+        interactive = captured["body"]["interactive"]
+        assert interactive["type"] == "list"
+        assert interactive["action"]["button"] == "Show options"
+        rows = interactive["action"]["sections"][0]["rows"]
+        assert [r["id"] for r in rows] == ["video", "quiz", "ask", "progress"]
+        assert rows[0]["description"] == "Your next lesson"
+        # Rows without a description must omit the key rather than send null.
+        assert "description" not in rows[1]
+
+    async def test_long_titles_are_truncated_to_metas_limits(self):
+        from messaging.base import Choice
+
+        captured, handler = self._capture()
+        client = make_client(handler)
+
+        await client.send_choices(
+            "15551234567", "Pick", [Choice("video", "A button title far beyond the limit")]
+        )
+
+        title = captured["body"]["interactive"]["action"]["buttons"][0]["reply"]["title"]
+        assert len(title) == WhatsAppClient.max_button_title_chars
+
+    async def test_too_many_choices_fall_back_to_text(self):
+        """A list holds 10 rows; an 11th must degrade, not fail."""
+        from messaging.base import Choice
+
+        captured, handler = self._capture()
+        client = make_client(handler)
+
+        await client.send_choices(
+            "15551234567",
+            "Pick one",
+            [Choice(f"c{i}", f"Option {i}") for i in range(11)],
+        )
+
+        body = captured["body"]
+        assert body["type"] == "text"
+        assert "Option 10" in body["text"]["body"]
+
+    async def test_no_choices_sends_plain_text(self):
+        captured, handler = self._capture()
+        client = make_client(handler)
+
+        await client.send_choices("15551234567", "Nothing to pick", [])
+
+        assert captured["body"]["type"] == "text"

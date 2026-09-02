@@ -18,12 +18,14 @@ import httpx
 from loguru import logger
 
 from messaging.base import (
+    Choice,
     MessagingClient,
     OutboundResult,
     PermanentMessagingError,
     Platform,
     TransientMessagingError,
     normalize_wa_id,
+    render_choices_text,
 )
 
 # Graph API error codes that are worth retrying.
@@ -75,6 +77,18 @@ class WhatsAppClient(MessagingClient):
     max_text_chars = 4096      # WhatsApp text body limit
     max_caption_chars = 1024   # media caption limit
     max_video_bytes = 16 * 1024 * 1024  # Cloud API video cap
+
+    # Interactive message limits, straight from the Cloud API reference. Meta
+    # rejects the whole message if any of these is exceeded, so every field is
+    # truncated to fit rather than risking a 400 mid-conversation.
+    max_buttons = 3            # reply buttons per message
+    max_button_title_chars = 20
+    max_choices = 10           # rows in a list message
+    max_choice_title_chars = 24
+    max_choice_description_chars = 72
+    max_interactive_body_chars = 1024
+    max_interactive_header_chars = 60
+    max_interactive_footer_chars = 60
 
     def __init__(
         self,
@@ -208,6 +222,96 @@ class WhatsAppClient(MessagingClient):
             message_id = self._message_id(body) or message_id
 
         return OutboundResult(success=True, platform=self.platform, message_id=message_id)
+
+    async def send_choices(
+        self,
+        to: str,
+        text: str,
+        choices: List[Choice],
+        *,
+        header: Optional[str] = None,
+        footer: Optional[str] = None,
+        list_label: str = "Menu",
+    ) -> OutboundResult:
+        """
+        Send a tappable menu.
+
+        WhatsApp has no slash-command UI, so this is how a learner discovers
+        what the bot can do. Meta offers two shapes and picks neither for you:
+        up to 3 *reply buttons*, or a *list* of up to 10 rows behind a button.
+        We choose on count so short menus stay one tap away.
+
+        Falls back to plain text when there are more options than a list can
+        hold, so the menu degrades instead of failing.
+        """
+        choices = list(choices or [])
+        if not choices:
+            return await self.send_message(to, text)
+
+        if len(choices) > self.max_choices:
+            logger.warning(
+                f"{len(choices)} choices exceeds WhatsApp's {self.max_choices}-row list; "
+                "sending the menu as text instead"
+            )
+            return await self.send_message(
+                to, render_choices_text(text, choices, header=header, footer=footer)
+            )
+
+        interactive: Dict[str, Any] = {
+            "body": {"text": (text or "Choose an option")[: self.max_interactive_body_chars]}
+        }
+        if header:
+            interactive["header"] = {
+                "type": "text",
+                "text": str(header)[: self.max_interactive_header_chars],
+            }
+        if footer:
+            interactive["footer"] = {"text": str(footer)[: self.max_interactive_footer_chars]}
+
+        if len(choices) <= self.max_buttons:
+            interactive["type"] = "button"
+            interactive["action"] = {
+                "buttons": [
+                    {
+                        "type": "reply",
+                        "reply": {
+                            "id": str(c.id)[:256],
+                            "title": str(c.title)[: self.max_button_title_chars],
+                        },
+                    }
+                    for c in choices
+                ]
+            }
+        else:
+            interactive["type"] = "list"
+            rows = []
+            for c in choices:
+                row: Dict[str, Any] = {
+                    "id": str(c.id)[:200],
+                    "title": str(c.title)[: self.max_choice_title_chars],
+                }
+                if c.description:
+                    row["description"] = str(c.description)[: self.max_choice_description_chars]
+                rows.append(row)
+            interactive["action"] = {
+                "button": str(list_label)[: self.max_button_title_chars],
+                "sections": [{"title": "Options", "rows": rows}],
+            }
+
+        body = await self._post_json(
+            self.messages_url,
+            {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": normalize_wa_id(to),
+                "type": "interactive",
+                "interactive": interactive,
+            },
+        )
+
+        return OutboundResult(
+            success=True, platform=self.platform, message_id=self._message_id(body)
+        )
 
     async def send_video(self, to: str, media_ref: str, caption: str = "") -> OutboundResult:
         if not media_ref:

@@ -476,7 +476,7 @@ for filename, content in templates.items():
     # Force overwrite with clean content
     with open(filepath, 'w', encoding='utf-8', newline='\n') as f:
         f.write(content)
-    print(f'✓ Created {filename} ({len(content)} bytes)')
+    print(f'[OK] Created {filename} ({len(content)} bytes)')
 
-print(f'\n✅ Successfully created {len(templates)} clean template files!')
+print(f'\n[OK] Successfully created {len(templates)} clean template files!')
 print('Templates are ready. Restart Flask server to test.')

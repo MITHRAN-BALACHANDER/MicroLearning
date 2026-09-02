@@ -13,6 +13,7 @@ from config.settings import (
     RAG_AGENT_PROMPT
 )
 from messaging.base import UserRef
+from messaging.formatting import DIVIDER, bold, bullets, italic, paragraphs, sanitize
 
 
 class RAGAgent:
@@ -216,18 +217,13 @@ Provide a clear answer citing the source documents."""
                 for meta in metadatas
             ]))
             
-            # Escape markdown special characters in answer
-            def escape_markdown(text):
-                """Escape special characters for Telegram MarkdownV2"""
-                # For Markdown mode (not MarkdownV2), we need to escape _ * [ ] ( ) ~ ` > # + - = | { } . !
-                # But simpler: just remove problematic bold/italic markers
-                return text.replace('*', '').replace('_', '').replace('`', '')
-            
-            # Format message without markdown formatting to avoid parsing errors
-            message_text = (
-                f"Answer:\n\n{escape_markdown(answer)}\n\n"
-                f"───────────\n"
-                f"Sources:\n" + "\n".join([f"- {s}" for s in sources])
+            # The model writes prose, not markup. A stray marker in it would
+            # change how the rest of the message renders - and Telegram rejects
+            # an unbalanced one outright - so strip them before embedding.
+            message_text = paragraphs(
+                sanitize(answer),
+                DIVIDER,
+                paragraphs(bold("Sources"), bullets(sanitize(s) for s in sources)),
             )
             
             # Send answer to user (plain text; the router splits long answers
@@ -307,10 +303,11 @@ Provide a clear answer citing the source documents."""
             # Send summary
             await self.router.send_message(
                 ref,
-                f"Document Summary\n\n"
-                f"Title: {doc_title}\n"
-                f"Type: {doc_type}\n\n"
-                f"{summary}"
+                paragraphs(
+                    bold(sanitize(doc_title)),
+                    italic(sanitize(doc_type)),
+                    sanitize(summary),
+                )
             )
             
             return {
@@ -339,7 +336,11 @@ Provide a clear answer citing the source documents."""
             if not documents:
                 await self.router.send_message(
                     ref,
-                    "No documents are currently available in the system."
+                    paragraphs(
+                        bold("No documents yet"),
+                        "Your administrator adds manuals and SOPs here. "
+                        "Once they do, you can search them right from this chat.",
+                    )
                 )
                 return {"success": True, "documents": []}
             
@@ -351,15 +352,16 @@ Provide a clear answer citing the source documents."""
                 docs_by_type[doc.doc_type].append(doc)
             
             # Format message
-            message = "Available Documents\n\n"
-            
+            sections = [bold("What I can search")]
             for doc_type, docs in docs_by_type.items():
-                message += f"{doc_type.upper()}:\n"
-                for doc in docs:
-                    message += f"  - {doc.title} (ID: {doc.id})\n"
-                message += "\n"
-            
-            message += "Use /ask [your question] to search these documents!"
+                sections.append(
+                    paragraphs(
+                        bold(sanitize(str(doc_type)).title()),
+                        bullets(sanitize(doc.title) for doc in docs),
+                    )
+                )
+            sections.append(italic('Tap "Ask a question" and I will search these.'))
+            message = paragraphs(*sections)
 
             await self.router.send_message(ref, message)
             

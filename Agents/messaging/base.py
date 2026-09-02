@@ -136,6 +136,22 @@ class InboundMessage:
     message_type: str = "text"
 
 
+@dataclass(frozen=True)
+class Choice:
+    """
+    One tappable option in an interactive menu.
+
+    `id` is what the dispatcher routes on when the learner taps it, so it must
+    match a command name; `title` is the label they see. Keeping them apart is
+    what lets the label read like English ("Take a quiz") while the routing
+    value stays stable.
+    """
+
+    id: str
+    title: str
+    description: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -183,6 +199,32 @@ def split_text(text: str, limit: int) -> List[str]:
     return chunks
 
 
+def render_choices_text(text: str, choices, *, header=None, footer=None) -> str:
+    """
+    Render a menu as plain text.
+
+    Used by platforms without native buttons, and as the safety net when a
+    menu is too large for the platform's interactive limits - a learner must
+    always be able to see their options, even if they have to type.
+    """
+    lines = []
+    if header:
+        lines.append(str(header))
+    if text:
+        lines.append(str(text))
+    if choices:
+        lines.append("")
+        for choice in choices:
+            line = f"- {choice.title}"
+            if choice.description:
+                line += f" - {choice.description}"
+            lines.append(line)
+    if footer:
+        lines.append("")
+        lines.append(str(footer))
+    return "\n".join(lines).strip()
+
+
 # ---------------------------------------------------------------------------
 # Client interface
 # ---------------------------------------------------------------------------
@@ -200,6 +242,9 @@ class MessagingClient(ABC):
     max_text_chars: int = 4096
     max_caption_chars: int = 1024
     max_video_bytes: int = 50 * 1024 * 1024
+    # Interactive menu limits; overridden per platform.
+    max_choices: int = 10
+    max_choice_title_chars: int = 24
 
     @abstractmethod
     async def send_message(self, to: str, text: str) -> OutboundResult:
@@ -212,6 +257,27 @@ class MessagingClient(ABC):
     @abstractmethod
     async def upload_video(self, file_path: str, *, staging_chat_id: Optional[str] = None) -> OutboundResult:
         """Upload a video once and return a reusable media reference."""
+
+    async def send_choices(
+        self,
+        to: str,
+        text: str,
+        choices: List["Choice"],
+        *,
+        header: Optional[str] = None,
+        footer: Optional[str] = None,
+        list_label: str = "Menu",
+    ) -> OutboundResult:
+        """
+        Send a menu of tappable options.
+
+        Platforms with native buttons override this. The default renders the
+        menu as text, so a client that has not implemented buttons still shows
+        the learner every option rather than silently dropping the menu.
+        """
+        return await self.send_message(
+            to, render_choices_text(text, choices, header=header, footer=footer)
+        )
 
     async def mark_read(self, message_id: str) -> None:
         """Optional read receipt. No-op unless the platform supports it."""

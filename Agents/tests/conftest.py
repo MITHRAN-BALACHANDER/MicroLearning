@@ -53,6 +53,7 @@ class FakeClient:
         self.max_caption_chars = max_caption_chars
         self.max_video_bytes = 16 * 1024 * 1024
         self.messages = []
+        self.menus = []
         self.videos = []
         self.read_receipts = []
         self.fail_with = None
@@ -74,6 +75,18 @@ class FakeClient:
             raise self.fail_with
         self.messages.append((to, text))
         return OutboundResult(success=True, platform=self.platform, message_id=f"m{len(self.messages)}")
+
+    async def send_choices(self, to, text, choices, *, header=None, footer=None,
+                           list_label="Menu"):
+        """Record the menu structurally, the way a native-button client sends it."""
+        from messaging.base import OutboundResult
+
+        if self.fail_with:
+            raise self.fail_with
+        self.menus.append((to, text, [c.id for c in choices]))
+        return OutboundResult(
+            success=True, platform=self.platform, message_id=f"c{len(self.menus)}"
+        )
 
     async def send_video(self, to, media_ref, caption=""):
         from messaging.base import OutboundResult

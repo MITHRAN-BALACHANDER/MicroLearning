@@ -105,7 +105,7 @@ async def admin_upload_video_command(
     
     # Check if user is admin (implement your own auth)
     if not is_admin(user_id):
-        await update.message.reply_text("⛔ Admin only command")
+        await update.message.reply_text("[STOP] Admin only command")
         return
     
     # Parse arguments
@@ -122,20 +122,20 @@ async def admin_upload_video_command(
     
     # Validate file exists
     if not os.path.exists(file_path):
-        await update.message.reply_text(f"❌ File not found: {file_path}")
+        await update.message.reply_text(f"[FAIL] File not found: {file_path}")
         return
     
     # Check if OneDrive path (WARNING)
     if "OneDrive" in file_path or "onedrive" in file_path.lower():
         await update.message.reply_text(
-            "⚠️ WARNING: File is in OneDrive folder!\n"
+            "[WARN] WARNING: File is in OneDrive folder!\n"
             "OneDrive sync can cause upload timeouts.\n"
             "RECOMMENDED: Move file to C:/Videos/ or another local folder.\n\n"
             "Continue anyway? Reply /forceupload to proceed."
         )
         return
     
-    await update.message.reply_text(f"📤 Uploading {os.path.basename(file_path)}...\nThis may take 1-3 minutes...")
+    await update.message.reply_text(f"Uploading {os.path.basename(file_path)}...\nThis may take 1-3 minutes...")
     
     # Upload and cache file_id
     result = await upload_agent.upload_and_cache_video(
@@ -159,23 +159,23 @@ async def admin_upload_video_command(
             )
             
             await update.message.reply_text(
-                f"✅ Video uploaded successfully!\n\n"
-                f"📹 Title: {title}\n"
-                f"💾 Size: {file_size_mb:.2f} MB\n"
-                f"🆔 Video ID: {video.id}\n"
-                f"🔑 file_id: {file_id[:30]}...\n\n"
-                f"✨ This video can now be delivered to unlimited users instantly!"
+                f"[OK] Video uploaded successfully!\n\n"
+                f"Title: {title}\n"
+                f"Size: {file_size_mb:.2f} MB\n"
+                f"ID Video ID: {video.id}\n"
+                f"file_id: {file_id[:30]}...\n\n"
+                f"This video can now be delivered to unlimited users instantly!"
             )
             
             logger.info(f"Video {video.id} uploaded and cached: {file_id[:30]}...")
             
         except Exception as e:
-            await update.message.reply_text(f"❌ Failed to save to database: {e}")
+            await update.message.reply_text(f"[FAIL] Failed to save to database: {e}")
             logger.error(f"Database error: {e}")
     else:
         error_msg = result.get("error", "Unknown error")
         await update.message.reply_text(
-            f"❌ Upload failed: {error_msg}\n\n"
+            f"[FAIL] Upload failed: {error_msg}\n\n"
             f"Troubleshooting:\n"
             f"1. Ensure file is not in OneDrive\n"
             f"2. Check file is not corrupted\n"
@@ -213,22 +213,22 @@ async def video_command(
         # Get next video for user (your own logic here)
         video = get_next_video_for_user(user.id)
         if not video:
-            await update.message.reply_text("🎉 You've completed all videos!")
+            await update.message.reply_text("You've completed all videos!")
             return
         
         # Check if video has file_id
         if not video.file_id:
             await update.message.reply_text(
-                "❌ Video not uploaded yet. Please contact admin."
+                "[FAIL] Video not uploaded yet. Please contact admin."
             )
             logger.error(f"Video {video.id} has no file_id!")
             return
         
         # Prepare caption
-        caption = f"📚 {video.title}\n\n{video.description}\n\n⭐ Use /quiz to test your understanding!"
+        caption = f"{video.title}\n\n{video.description}\n\nUse /quiz to test your understanding!"
         
         # Deliver video using file_id (FAST - no upload)
-        await update.message.reply_text("📹 Sending your video...")
+        await update.message.reply_text("Sending your video...")
         
         result = await delivery_agent.send_video_by_file_id(
             chat_id=telegram_id,
@@ -247,14 +247,14 @@ async def video_command(
             suggestion = result.get("suggestion", "")
             
             await update.message.reply_text(
-                f"❌ Failed to send video: {error_msg}\n\n{suggestion}"
+                f"[FAIL] Failed to send video: {error_msg}\n\n{suggestion}"
             )
             logger.error(f"Delivery failed: {error_msg}")
             
     except Exception as e:
         logger.exception(f"Error in video_command: {e}")
         await update.message.reply_text(
-            "❌ An error occurred. Please try again or contact support."
+            "[FAIL] An error occurred. Please try again or contact support."
         )
 
 
@@ -345,7 +345,7 @@ def main():
 # ============================================================================
 
 """
-✅ DO:
+[OK] DO:
 ------
 1. Upload videos ONCE via VideoUploadAgent
 2. Store file_id in database immediately
@@ -356,7 +356,7 @@ def main():
 7. Use proper error handling and retry logic
 8. Log all operations for debugging
 
-❌ DON'T:
+[FAIL] DON'T:
 ---------
 1. Re-upload same video per user (wastes time, bandwidth, fails)
 2. Store videos in OneDrive (sync causes I/O issues)

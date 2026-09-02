@@ -15,6 +15,7 @@ from database.operations import (
     get_db
 )
 from database.models import Video, VideoProgress
+from messaging.formatting import DIVIDER, bold, italic, paragraphs, sanitize
 from config.settings import GEMINI_API_KEY, QUESTION_AGENT_PROMPT
 from messaging.base import UserRef
 
@@ -168,9 +169,13 @@ class QuestionAgent:
                 ).order_by(VideoProgress.watched_at.desc()).first()
                 
                 if not last_progress:
+                    # Not a failure - the learner just has not started. The
+                    # dispatcher turns this flag into an empty state with a
+                    # "Watch first video" button.
                     return {
                         "success": False,
-                        "error": "Please watch a video first using /video command"
+                        "needs_video": True,
+                        "error": "No watched video to build a quiz from",
                     }
                 
                 video_id = last_progress.video_id
@@ -196,10 +201,11 @@ class QuestionAgent:
             first_question = questions[0]
             await self.router.send_message(
                 ref,
-                f"Quiz Time!\n\n"
-                f"Question 1/{len(questions)}:\n\n"
-                f"{first_question['question']}\n\n"
-                f"Please type your answer:"
+                paragraphs(
+                    bold(f"Question 1 of {len(questions)}"),
+                    sanitize(first_question["question"]),
+                    italic("Reply with your answer."),
+                )
             )
 
             return {
@@ -302,12 +308,17 @@ class QuestionAgent:
                 next_q = quiz_state["questions"][quiz_state["current_index"]]
                 await self.router.send_message(
                     ref,
-                    f"Rating: {evaluation['rating']}/10\n\n"
-                    f"Feedback: {evaluation['feedback']}\n\n"
-                    f"───────────\n\n"
-                    f"Question {quiz_state['current_index'] + 1}/{len(quiz_state['questions'])}:\n\n"
-                    f"{next_q['question']}\n\n"
-                    f"Please type your answer:"
+                    paragraphs(
+                        bold(f"Scored {evaluation['rating']}/10"),
+                        sanitize(evaluation["feedback"]),
+                        DIVIDER,
+                        bold(
+                            f"Question {quiz_state['current_index'] + 1} of "
+                            f"{len(quiz_state['questions'])}"
+                        ),
+                        sanitize(next_q["question"]),
+                        italic("Reply with your answer."),
+                    ),
                 )
 
                 return {
@@ -319,14 +330,17 @@ class QuestionAgent:
                 # Quiz completed
                 avg_rating = sum(a["evaluation"]["rating"] for a in quiz_state["answers"]) / len(quiz_state["answers"])
                 
+                answered = len(quiz_state["answers"])
                 await self.router.send_message(
                     ref,
-                    f"Rating: {evaluation['rating']}/10\n\n"
-                    f"Feedback: {evaluation['feedback']}\n\n"
-                    f"───────────\n\n"
-                    f"Quiz Completed!\n\n"
-                    f"Average Score: {avg_rating:.1f}/10\n\n"
-                    f"Great job! Use /progress to see your overall progress."
+                    paragraphs(
+                        bold(f"Scored {evaluation['rating']}/10"),
+                        sanitize(evaluation["feedback"]),
+                        DIVIDER,
+                        bold("Quiz complete"),
+                        f"You averaged {bold(f'{avg_rating:.1f}/10')} "
+                        f"across {answered} question{'s' if answered != 1 else ''}.",
+                    ),
                 )
 
                 # Clean up quiz state

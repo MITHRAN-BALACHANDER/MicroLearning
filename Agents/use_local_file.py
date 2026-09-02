@@ -26,16 +26,16 @@ result = cursor.fetchone()
 
 if result:
     vid_id, title, file_id = result
-    print("✅ Updated successfully!")
+    print("[OK] Updated successfully!")
     print(f"   Video ID: {vid_id}")
     print(f"   Title: {title}")
     print(f"   file_id: {file_id}")
     print(f"   Type: Local file path")
 else:
-    print("❌ Video not found!")
+    print("[FAIL] Video not found!")
 
 conn.close()
 
-print("\n🚀 Now restart your bot and test /video")
+print("\nNow restart your bot and test /video")
 print("   The bot will upload the file from your local disk")
 print("   After first upload, you can optionally save the new file_id")

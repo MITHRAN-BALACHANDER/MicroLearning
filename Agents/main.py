@@ -102,7 +102,12 @@ class MicroLearningBot:
     def register_telegram_handlers(self):
         """Thin Telegram handlers that delegate to the shared dispatcher."""
         from telegram import Update
-        from telegram.ext import CommandHandler, MessageHandler, filters
+        from telegram.ext import (
+            CallbackQueryHandler,
+            CommandHandler,
+            MessageHandler,
+            filters,
+        )
 
         logger.info("Registering Telegram command handlers...")
 
@@ -124,6 +129,24 @@ class MicroLearningBot:
         self.telegram_app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, on_message)
         )
+
+        async def on_menu_tap(update, context):
+            """
+            Handle an inline-keyboard tap.
+
+            `callback_data` is the choice id the dispatcher routes on, which is
+            the same value WhatsApp puts in a button reply - so both channels
+            land in one code path.
+            """
+            query = update.callback_query
+            # Telegram shows a loading spinner on the button until acknowledged.
+            await query.answer()
+            ref, profile = _telegram_identity(update)
+            await self.dispatcher.handle_text(
+                ref, query.data or "", profile, from_button=True
+            )
+
+        self.telegram_app.add_handler(CallbackQueryHandler(on_menu_tap))
 
         async def on_error(update, context):
             logger.error(f"Update {update} caused error {context.error}")

@@ -12,8 +12,8 @@ Get your Telegram bot sending videos reliably in 5 minutes!
 """
 1.1 Your videos are already in the correct location!
 
-✅ CURRENT: C:/Users/bmith/OneDrive/Desktop/projects -2025/MicroLearning/Agents/data/videos/
-✅ USE:     Relative path from project: "data/videos/your_video.mp4"
+[OK] CURRENT: C:/Users/bmith/OneDrive/Desktop/projects -2025/MicroLearning/Agents/data/videos/
+[OK] USE:     Relative path from project: "data/videos/your_video.mp4"
 
 Note: While the project is in OneDrive, videos are accessed via relative paths
 which minimizes OneDrive sync issues. The memory buffering technique in
@@ -54,7 +54,7 @@ async def initialize_bot():
         if video.file_id and video.file_path:
             upload_agent.cache_file_id(video.file_path, video.file_id)
     
-    print(f"✅ Agents initialized, cached {len(videos)} file_ids")
+    print(f"[OK] Agents initialized, cached {len(videos)} file_ids")
 
 # ============================================================================
 # STEP 3: Add Admin Upload Command (One-Time Per Video)
@@ -76,7 +76,7 @@ async def admin_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check admin (implement your auth)
     if user_id not in ["YOUR_ADMIN_ID"]:
-        await update.message.reply_text("⛔ Admin only")
+        await update.message.reply_text("[STOP] Admin only")
         return
     
     # Parse arguments
@@ -97,11 +97,11 @@ async def admin_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Validate file
     if not os.path.exists(file_path):
-        await update.message.reply_text(f"❌ File not found: {file_path}")
+        await update.message.reply_text(f"[FAIL] File not found: {file_path}")
         return
     
     # Upload and extract file_id
-    await update.message.reply_text("📤 Uploading...")
+    await update.message.reply_text("Uploading...")
     
     upload_agent = context.bot_data["upload_agent"]
     result = await upload_agent.upload_and_cache_video(
@@ -122,12 +122,12 @@ async def admin_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await update.message.reply_text(
-            f"✅ Uploaded!\n"
+            f"[OK] Uploaded!\n"
             f"Video ID: {video.id}\n"
             f"file_id: {file_id[:30]}..."
         )
     else:
-        await update.message.reply_text(f"❌ Failed: {result['error']}")
+        await update.message.reply_text(f"[FAIL] Failed: {result['error']}")
 
 # Register handler
 application.add_handler(CommandHandler("adminupload", admin_upload))
@@ -158,22 +158,22 @@ async def video_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     video = get_next_video_for_user(user.id)
     
     if not video:
-        await update.message.reply_text("🎉 All videos completed!")
+        await update.message.reply_text("All videos completed!")
         return
     
     # Check file_id exists
     if not video.file_id:
-        await update.message.reply_text("❌ Video not ready. Contact admin.")
+        await update.message.reply_text("[FAIL] Video not ready. Contact admin.")
         return
     
     # Deliver using file_id (INSTANT - no upload)
-    await update.message.reply_text("📹 Sending video...")
+    await update.message.reply_text("Sending video...")
     
     delivery_agent = context.bot_data["delivery_agent"]
     result = await delivery_agent.send_video_by_file_id(
         chat_id=telegram_id,
         file_id=video.file_id,
-        caption=f"📚 {video.title}\n\n{video.description}\n\n⭐ Use /quiz to test!",
+        caption=f"{video.title}\n\n{video.description}\n\nUse /quiz to test!",
         video_metadata={"video_id": video.id}
     )
     
@@ -183,7 +183,7 @@ async def video_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mark_video_watched(user.id, video.id, completed=False)
     else:
         await update.message.reply_text(
-            f"❌ Delivery failed: {result['error']}\n{result.get('suggestion', '')}"
+            f"[FAIL] Delivery failed: {result['error']}\n{result.get('suggestion', '')}"
         )
 
 # Register handler
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     # ...
     
     # Run
-    print("🚀 Bot starting...")
+    print("Bot starting...")
     application.run_polling()
 
 # ============================================================================
@@ -218,12 +218,12 @@ if __name__ == "__main__":
 6.1 Upload a test video (as admin):
     
     You: /adminupload C:/Videos/test.mp4 "Test Video" "Testing upload system"
-    Bot: ✅ Uploaded! Video ID: 1, file_id: BAACAgI...
+    Bot: [OK] Uploaded! Video ID: 1, file_id: BAACAgI...
 
 6.2 Send to yourself (as user):
     
     You: /video
-    Bot: 📹 Sending video...
+    Bot: Sending video...
     Bot: [Sends video INSTANTLY using file_id]
 
 6.3 Send to another user:
@@ -245,29 +245,29 @@ if __name__ == "__main__":
 # ============================================================================
 
 """
-❌ Problem: Upload still times out
+[FAIL] Problem: Upload still times out
 
 Solutions:
-1. ✅ File moved out of OneDrive? Check path doesn't contain "OneDrive"
-2. ✅ Internet stable? Test: ping telegram.org
-3. ✅ File not corrupted? Test: open file in video player
-4. ✅ File size reasonable? Telegram limit: 50 MB
+1. [OK] File moved out of OneDrive? Check path doesn't contain "OneDrive"
+2. [OK] Internet stable? Test: ping telegram.org
+3. [OK] File not corrupted? Test: open file in video player
+4. [OK] File size reasonable? Telegram limit: 50 MB
 
-❌ Problem: "Invalid file_id" error
+[FAIL] Problem: "Invalid file_id" error
 
 Solutions:
 1. file_id expired (rare) → Re-upload video
 2. file_id from different bot → Can't transfer, must re-upload
 3. Typo in file_id → Check database
 
-❌ Problem: "Chat not found" error
+[FAIL] Problem: "Chat not found" error
 
 Reasons:
 1. User blocked bot → Mark user as inactive
 2. User deleted account → Remove from database
 3. Wrong chat_id → Verify Telegram ID
 
-❌ Problem: Video takes long to send
+[FAIL] Problem: Video takes long to send
 
 Check:
 1. Using file_id? (Fast) or file_path? (Slow)
@@ -282,15 +282,15 @@ Check:
 """
 Before deploying to production:
 
-✅ Videos moved out of OneDrive
-✅ Agents initialized on bot startup
-✅ file_ids cached from database
-✅ Admin upload command restricted (auth check)
-✅ User delivery uses file_id (not file_path)
-✅ Error handling in place
-✅ Logging configured
-✅ Database backups enabled
-✅ Monitoring/stats checked regularly
+[OK] Videos moved out of OneDrive
+[OK] Agents initialized on bot startup
+[OK] file_ids cached from database
+[OK] Admin upload command restricted (auth check)
+[OK] User delivery uses file_id (not file_path)
+[OK] Error handling in place
+[OK] Logging configured
+[OK] Database backups enabled
+[OK] Monitoring/stats checked regularly
 
 Success criteria:
 - Upload time: 20-60s (one-time per video)
@@ -304,7 +304,7 @@ Success criteria:
 # ============================================================================
 
 """
-🚀 Ready to scale:
+Ready to scale:
 
 1. Distribute file_id cache:
    - Use Redis for multi-instance deployments
@@ -325,9 +325,9 @@ Success criteria:
    - Progress tracking with buttons
    - Video playlists
 
-📚 Read full documentation:
+Read full documentation:
    - docs/VIDEO_UPLOAD_DELIVERY_SYSTEM.md
    - examples/production_video_system.py
 
-✅ You're all set! Enjoy reliable video delivery! 🎉
+[OK] You're all set! Enjoy reliable video delivery!
 """

@@ -22,21 +22,21 @@ result = cursor.fetchone()
 
 if result:
     vid_id, title, file_id = result
-    print("✅ Updated successfully!")
+    print("[OK] Updated successfully!")
     print(f"   Video ID: {vid_id}")
     print(f"   Title: {title}")
     print(f"   file_id: {file_id}")
     print(f"   Length: {len(file_id)} characters")
     
     if file_id == correct_file_id:
-        print("\n🎉 Perfect! file_id matches exactly!")
+        print("\nPerfect! file_id matches exactly!")
     else:
-        print(f"\n⚠️  Warning: file_id doesn't match!")
+        print(f"\n[WARN] Warning: file_id doesn't match!")
         print(f"   Expected: {correct_file_id}")
         print(f"   Got: {file_id}")
 else:
-    print("❌ Video not found!")
+    print("[FAIL] Video not found!")
 
 conn.close()
 
-print("\n🚀 Now restart your bot: python main.py")
+print("\nNow restart your bot: python main.py")

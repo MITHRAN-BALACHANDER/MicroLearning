@@ -16,6 +16,7 @@ from database.operations import (
 )
 from config.settings import AUTO_UPLOAD_MEDIA
 from messaging.base import UserRef
+from messaging.formatting import bold, italic, sanitize
 
 
 class VideoAgent:
@@ -54,8 +55,10 @@ class VideoAgent:
             seconds = video.duration % 60
             duration_text = f"Duration: {minutes}:{seconds:02d}\n"
 
-        title = video.title[:100] if video.title else "Video"
-        description = video.description or "Educational video"
+        # Titles and descriptions come from the database, so they can contain
+        # characters WhatsApp would read as markup.
+        title = bold(sanitize(video.title)[:100] if video.title else "Video")
+        description = sanitize(video.description) or "Educational video"
 
         base_text = f"{title}\n\n"
         difficulty_stars = '*' * (video.difficulty_level or 1)

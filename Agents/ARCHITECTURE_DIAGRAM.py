@@ -37,7 +37,7 @@ ARCHITECTURE_DIAGRAM = """
     │         Retries: 3 attempts with backoff                 │────┼───┐
     └──────────────────────────────────────────────────────────┘    │   │
            │                                                         │   │
-           │  ✅ Upload Success                                     │   │
+           │  [OK] Upload Success                                     │   │
            ▼                                                         ▼   │
     ┌──────────────────────────────────────────────────────────┐    │   │
     │  Response: file_id = "BAACAgIAAxkBAAIC..."              │◄───┘   │
@@ -91,7 +91,7 @@ ARCHITECTURE_DIAGRAM = """
     │   file_id)     │  file_id) │      │  file_id)│  │  file_id)│
     └────┬─────┘      └────┬─────┘      └────┬─────┘  └────┬─────┘
          │                 │                 │              │
-         │  ✅ 1-3 sec     │  ✅ 1-3 sec     │  ✅ 1-3 sec  │  ✅ 1-3 sec
+         │  [OK] 1-3 sec     │  [OK] 1-3 sec     │  [OK] 1-3 sec  │  [OK] 1-3 sec
          │                 │                 │              │
          ▼                 ▼                 ▼              ▼
     [Video sent]      [Video sent]      [Video sent]  [Video sent]
@@ -119,20 +119,20 @@ BadRequest ────────────────┘    • Return det
 ║                            WINDOWS + ONEDRIVE ISSUE                           ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-❌ PROBLEM:
+[FAIL] PROBLEM:
 
     OneDrive Folder                          Async Upload Handler
          │                                           │
          │  open("video.mp4", "rb")                │
          ├──────────────────────────────────────────┤
          │                                           │
-         │  ⚠️ Files On-Demand                     │  ⚠️ Event loop blocked
-         │  ⚠️ Cloud sync active                   │  ⚠️ httpx write stall
-         │  ⚠️ Filesystem latency                  │  ⚠️ Timeout occurs
+         │  [WARN] Files On-Demand                     │  [WARN] Event loop blocked
+         │  [WARN] Cloud sync active                   │  [WARN] httpx write stall
+         │  [WARN] Filesystem latency                  │  [WARN] Timeout occurs
          │                                           │
          └───────────────► TIMEOUT ◄────────────────┘
 
-✅ SOLUTION:
+[OK] SOLUTION:
 
     Local Folder                        Memory Buffer                Upload Handler
          │                                   │                            │
@@ -141,8 +141,8 @@ BadRequest ────────────────┘    • Return det
          │                                   │  BytesIO(content)         │
          │                                   ├───────────────────────────►
          │                                   │                            │
-         │  ✅ No OneDrive sync             │  ✅ No filesystem I/O      │  ✅ No blocking
-         │  ✅ Local disk fast              │  ✅ Pure memory            │  ✅ Clean upload
+         │  [OK] No OneDrive sync             │  [OK] No filesystem I/O      │  [OK] No blocking
+         │  [OK] Local disk fast              │  [OK] Pure memory            │  [OK] Clean upload
          │                                   │                            │
          └───────────────────────────────────┴────────────────────────────┴───► SUCCESS
 
@@ -157,12 +157,12 @@ Scenario: 10 MB video, 100 users
 │  BEFORE (Direct File Upload Per User)                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-User 1: Upload 10 MB [████████████████] 30s  ⏱️
-User 2: Upload 10 MB [████████████████] 35s  ⏱️
-User 3: Upload 10 MB [████████████████] ❌ TIMEOUT
-User 4: Upload 10 MB [████████████████] 40s  ⏱️
+User 1: Upload 10 MB [████████████████] 30s  ⏱
+User 2: Upload 10 MB [████████████████] 35s  ⏱
+User 3: Upload 10 MB [████████████████] [FAIL] TIMEOUT
+User 4: Upload 10 MB [████████████████] 40s  ⏱
 ...
-User 100: Upload 10 MB [████████████████] ❌ TIMEOUT
+User 100: Upload 10 MB [████████████████] [FAIL] TIMEOUT
 
 Total Time: 50+ minutes
 Total Bandwidth: 1000 MB (100 × 10 MB)
@@ -173,15 +173,15 @@ Timeouts: 40-50 users
 │  AFTER (file_id System)                                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-Admin: Upload 10 MB [████████████████] 30s ⏱️  (ONE TIME)
-       file_id cached ✅
+Admin: Upload 10 MB [████████████████] 30s ⏱ (ONE TIME)
+       file_id cached [OK]
 
-User 1: Send file_id [█] 1.5s ✅
-User 2: Send file_id [█] 1.2s ✅
-User 3: Send file_id [█] 1.8s ✅
-User 4: Send file_id [█] 1.3s ✅
+User 1: Send file_id [█] 1.5s [OK]
+User 2: Send file_id [█] 1.2s [OK]
+User 3: Send file_id [█] 1.8s [OK]
+User 4: Send file_id [█] 1.3s [OK]
 ...
-User 100: Send file_id [█] 1.4s ✅
+User 100: Send file_id [█] 1.4s [OK]
 
 Total Time: ~3 minutes
 Total Bandwidth: 10 MB (1 × 10 MB)
@@ -256,11 +256,11 @@ Upload:  local_file ──► Telegram ──► returns file_id
 Delivery: file_id ──► Telegram ──► sends video (instant)
 
 Benefits:
-✅ No re-upload needed
-✅ No bandwidth waste
-✅ No file I/O
-✅ Instant delivery
-✅ Perfect for multiple users
+[OK] No re-upload needed
+[OK] No bandwidth waste
+[OK] No file I/O
+[OK] Instant delivery
+[OK] Perfect for multiple users
 
 Example:
 file_id = "BAACAgIAAxkBAAICaGZvZXNfaGVyZQ"
@@ -282,13 +282,13 @@ KEY PRINCIPLES:
 5. Retry Logic ──► Fail-safe ──► Production-ready
 
 ARCHITECTURE BENEFITS:
-✅ Fixes timeout issues permanently
-✅ Scales to unlimited users
-✅ 99% bandwidth savings
-✅ 94% time savings
-✅ Production-grade error handling
-✅ No quick hacks
-✅ Suitable for microlearning platforms
+[OK] Fixes timeout issues permanently
+[OK] Scales to unlimited users
+[OK] 99% bandwidth savings
+[OK] 94% time savings
+[OK] Production-grade error handling
+[OK] No quick hacks
+[OK] Suitable for microlearning platforms
 
 FILES CREATED:
 • VideoUploadAgent      (300 lines)
@@ -301,7 +301,7 @@ FILES CREATED:
 TOTAL: ~2,460 lines of production-ready code
 
 ═════════════════════════════════════════════════════════════════════════════
-                    Built with Production-Level Engineering ⚡
+                    Built with Production-Level Engineering
 ═════════════════════════════════════════════════════════════════════════════
 """
 

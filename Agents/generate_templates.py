@@ -313,7 +313,7 @@ for filename, content in templates.items():
     filepath = os.path.join(template_dir, filename)
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f'✓ Created {filename}')
+    print(f'[OK] Created {filename}')
 
 print(f'\nSuccessfully created {len(templates)} template files!')
 print('Note: Remaining templates (users.html, videos.html, etc.) need to be created')

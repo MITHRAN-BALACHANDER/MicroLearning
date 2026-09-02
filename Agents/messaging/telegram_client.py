@@ -17,6 +17,7 @@ from telegram.error import (
 )
 
 from messaging.base import (
+    Choice,
     MessagingClient,
     OutboundResult,
     PermanentMessagingError,
@@ -38,16 +39,85 @@ class TelegramClient(MessagingClient):
 
     # -- outbound ---------------------------------------------------------
 
+    async def _send_markdown(self, **kwargs):
+        """
+        Send with Markdown parsing, falling back to plain text.
+
+        Messages are authored with WhatsApp's syntax (see messaging.formatting)
+        and Telegram's legacy Markdown reads the same *bold* / _italic_ markers,
+        so one string serves both channels.
+
+        Where they differ is failure: WhatsApp shows an unbalanced marker
+        literally, while Telegram rejects the whole send with a 400. Our own
+        copy is balanced and model output is sanitized, but a learner's own
+        words get quoted back to them - so an unparseable message is delivered
+        plain rather than dropped.
+        """
+        from telegram.constants import ParseMode
+
+        try:
+            return await self.bot.send_message(parse_mode=ParseMode.MARKDOWN, **kwargs)
+        except BadRequest as exc:
+            detail = str(exc).lower()
+            if "parse" not in detail and "entit" not in detail:
+                raise
+            logger.debug(f"Markdown parse failed, resending as plain text: {exc}")
+            return await self.bot.send_message(**kwargs)
+
     async def send_message(self, to: str, text: str) -> OutboundResult:
         message_id = None
         try:
             for part in self.split_message(text):
-                message = await self.bot.send_message(chat_id=to, text=part)
+                message = await self._send_markdown(chat_id=to, text=part)
                 message_id = str(message.message_id)
         except Exception as exc:
             raise _translate(exc) from exc
 
         return OutboundResult(success=True, platform=self.platform, message_id=message_id)
+
+    async def send_choices(
+        self,
+        to: str,
+        text: str,
+        choices,
+        *,
+        header: Optional[str] = None,
+        footer: Optional[str] = None,
+        list_label: str = "Menu",
+    ) -> OutboundResult:
+        """
+        Send a menu as an inline keyboard.
+
+        Telegram has native slash commands, but the same menus still need to
+        work here or the two channels drift - a learner tapping "Take a quiz"
+        must reach the same dispatcher path on both. `callback_data` carries
+        the choice id, which main.py hands straight to the dispatcher.
+        """
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+        choices = list(choices or [])
+        if not choices:
+            return await self.send_message(to, text)
+
+        body = "\n\n".join(part for part in (header, text, footer) if part)
+        keyboard = [
+            # One per row: these are sentences, not chips, and wrap badly side by side.
+            [InlineKeyboardButton(str(c.title), callback_data=str(c.id)[:64])]
+            for c in choices
+        ]
+
+        try:
+            message = await self._send_markdown(
+                chat_id=to,
+                text=body or "Choose an option",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+        except Exception as exc:
+            raise _translate(exc) from exc
+
+        return OutboundResult(
+            success=True, platform=self.platform, message_id=str(message.message_id)
+        )
 
     async def send_video(self, to: str, media_ref: str, caption: str = "") -> OutboundResult:
         if not media_ref:

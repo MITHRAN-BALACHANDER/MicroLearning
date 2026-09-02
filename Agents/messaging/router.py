@@ -10,6 +10,7 @@ from typing import Dict, Iterable, List, Optional
 from loguru import logger
 
 from messaging.base import (
+    Choice,
     MessagingClient,
     MessagingError,
     OutboundResult,
@@ -67,12 +68,55 @@ class MessagingRouter:
         Never raises: agents get a result object so a failed send degrades the
         turn instead of crashing the handler.
         """
+        return await self._send_with_retry(
+            ref,
+            lambda client: client.send_message(ref.platform_user_id, text),
+            max_retries=max_retries,
+        )
+
+    async def send_choices(
+        self,
+        ref: UserRef,
+        text: str,
+        choices: List[Choice],
+        *,
+        header: Optional[str] = None,
+        footer: Optional[str] = None,
+        list_label: str = "Menu",
+        max_retries: int = 3,
+    ) -> OutboundResult:
+        """
+        Send a tappable menu, with the same retry guarantees as send_message.
+
+        Platforms without native buttons fall back to text inside their client,
+        so callers never need to ask which channel they are on.
+        """
+        return await self._send_with_retry(
+            ref,
+            lambda client: client.send_choices(
+                ref.platform_user_id,
+                text,
+                choices,
+                header=header,
+                footer=footer,
+                list_label=list_label,
+            ),
+            max_retries=max_retries,
+        )
+
+    async def _send_with_retry(self, ref: UserRef, operation, *, max_retries: int = 3) -> OutboundResult:
+        """
+        Run one send, retrying transient failures with linear backoff.
+
+        `operation` takes the resolved client and returns the awaitable send,
+        so every outbound kind shares one retry and error-translation policy.
+        """
         client = self.client_for(ref)
         last_error: Optional[MessagingError] = None
 
         for attempt in range(1, max_retries + 1):
             try:
-                result = await client.send_message(ref.platform_user_id, text)
+                result = await operation(client)
                 result.attempts = attempt
                 return result
             except TransientMessagingError as exc:

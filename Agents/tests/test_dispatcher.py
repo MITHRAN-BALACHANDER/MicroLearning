@@ -114,11 +114,16 @@ class TestParseCommand:
         assert parsed.is_explicit is True
 
     def test_telegram_group_suffix_is_stripped(self):
-        assert parse_command("/video@MyLearningBot", allow_bare=False).command == "video"
+        assert parse_command("/video@MyLearningBot", allow_bare=False).command == "lesson"
 
     def test_bare_word_accepted_when_allowed(self):
         """WhatsApp has no slash-command menu, so bare keywords must work."""
-        assert parse_command("video", allow_bare=True).command == "video"
+        assert parse_command("lesson", allow_bare=True).command == "lesson"
+
+    def test_old_video_wording_still_routes(self):
+        """Learners and old links still say "video"; it must keep working."""
+        for word in ("video", "watch", "listen", "read"):
+            assert parse_command(word, allow_bare=True).command == "lesson"
 
     def test_bare_word_ignored_when_not_allowed(self):
         assert parse_command("video", allow_bare=False).command is None
@@ -126,11 +131,12 @@ class TestParseCommand:
     def test_greetings_alias_to_start(self):
         assert parse_command("hi", allow_bare=True).command == "start"
 
-    def test_menu_aliases_to_help(self):
-        assert parse_command("menu", allow_bare=True).command == "help"
+    def test_menu_is_its_own_command(self):
+        """`menu` reopens the button menu; it is no longer an alias for help."""
+        assert parse_command("menu", allow_bare=True).command == "menu"
 
     def test_case_insensitive(self):
-        assert parse_command("/VIDEO", allow_bare=True).command == "video"
+        assert parse_command("/VIDEO", allow_bare=True).command == "lesson"
 
     def test_free_text_is_not_a_command(self):
         parsed = parse_command("photosynthesis converts light into energy", allow_bare=True)
@@ -176,7 +182,9 @@ class TestCommandParity:
 
         await dispatcher.handle_text(wa_ref, "/ask")
         assert orchestrator.agents[AgentType.RAG].queries == []
-        assert "Please provide a question" in fake_whatsapp_client.messages[-1][1]
+        assert "*Ask a question*" in fake_whatsapp_client.messages[-1][1]
+        # The learner is now expected to type the question as a plain message.
+        assert wa_ref.key in dispatcher._awaiting_question
 
     async def test_ask_forwards_the_query(self, dispatcher, orchestrator, wa_ref):
         from agents.orchestrator import AgentType
@@ -193,12 +201,14 @@ class TestCommandParity:
     async def test_progress_reports_stats(self, dispatcher, wa_ref, fake_whatsapp_client):
         await dispatcher.handle_text(wa_ref, "/progress")
         body = fake_whatsapp_client.messages[-1][1]
-        assert "3/10" in body
+        assert "3 of 10 done" in body
         assert "7.5/10" in body
 
-    async def test_unknown_command_is_reported(self, dispatcher, wa_ref, fake_whatsapp_client):
+    async def test_unknown_command_shows_the_menu(self, dispatcher, wa_ref, fake_whatsapp_client):
+        """A wrong guess should offer the options, not just say no."""
         await dispatcher.handle_text(wa_ref, "/teleport")
-        assert "Unknown command" in fake_whatsapp_client.messages[-1][1]
+        _, _, ids = fake_whatsapp_client.menus[-1]
+        assert "lesson" in ids and "quiz" in ids
 
 
 @pytest.mark.asyncio
@@ -255,11 +265,14 @@ class TestFreeform:
                                                   wa_ref, fake_whatsapp_client):
         await dispatcher.handle_text(wa_ref, "tell me about onboarding stuff")
         assert len(orchestrator.routed) == 1
-        assert "/video" in fake_whatsapp_client.messages[-1][1]
+        _, _, ids = fake_whatsapp_client.menus[-1]
+        assert "lesson" in ids
 
     async def test_unsupported_media_gets_a_reply(self, dispatcher, wa_ref, fake_whatsapp_client):
         await dispatcher.handle_unsupported(wa_ref, "image")
-        assert "text messages" in fake_whatsapp_client.messages[-1][1]
+        to, prompt, ids = fake_whatsapp_client.menus[-1]
+        assert "read text right now" in prompt
+        assert "lesson" in ids
 
     async def test_handler_errors_are_contained(self, dispatcher, orchestrator,
                                                 wa_ref, fake_whatsapp_client):
@@ -273,4 +286,103 @@ class TestFreeform:
         result = await dispatcher.handle_text(wa_ref, "/video")
 
         assert result["handled_as"] == "error"
-        assert "ERROR" in fake_whatsapp_client.messages[-1][1]
+        assert "Something went wrong" in fake_whatsapp_client.messages[-1][1]
+
+
+@pytest.mark.asyncio
+class TestInteractiveMenus:
+    """The menu is how a WhatsApp learner discovers what the bot can do."""
+
+    async def test_start_sends_the_main_menu(self, dispatcher, wa_ref, fake_whatsapp_client,
+                                             monkeypatch):
+        # Registration is the only DB touch on this path; stub it so the test
+        # covers what the learner actually sees.
+        registered = []
+        monkeypatch.setattr(
+            "dispatcher.get_or_create_user_from_ref",
+            lambda ref, **kw: registered.append((ref, kw)),
+        )
+
+        await dispatcher.handle_text(wa_ref, "hi", Profile(first_name="Mithran"))
+
+        assert len(registered) == 1   # cmd_start registers; register_inbound is the webhook's job
+        assert "*Welcome to MicroLearning, Mithran*" in fake_whatsapp_client.messages[-1][1]
+        _, _, ids = fake_whatsapp_client.menus[-1]
+        assert ids == ["lesson", "quiz", "ask", "progress", "docs", "help"]
+
+    async def test_finishing_a_lesson_offers_the_quiz(self, dispatcher, wa_ref,
+                                                      fake_whatsapp_client):
+        await dispatcher.handle_text(wa_ref, "lesson")
+
+        _, prompt, ids = fake_whatsapp_client.menus[-1]
+        assert prompt == "Finished with that one?"
+        # Three or fewer, so WhatsApp renders these as real buttons.
+        assert ids == ["quiz", "lesson", "menu"]
+
+    async def test_button_tap_is_a_command_not_a_quiz_answer(self, dispatcher, orchestrator,
+                                                             wa_ref):
+        """
+        The regression this guards: mid-quiz, bare words are answers. A learner
+        tapping "Take a quiz" would otherwise have "quiz" graded as their answer.
+        """
+        from agents.orchestrator import AgentType
+
+        question_agent = orchestrator.agents[AgentType.QUESTION]
+        question_agent.active.add(wa_ref.key)
+
+        await dispatcher.handle_text(wa_ref, "video", from_button=True)
+
+        assert question_agent.evaluated == []
+        assert orchestrator.agents[AgentType.VIDEO].sent == [wa_ref]
+
+    async def test_typed_word_mid_quiz_is_still_an_answer(self, dispatcher, orchestrator,
+                                                          wa_ref):
+        from agents.orchestrator import AgentType
+
+        question_agent = orchestrator.agents[AgentType.QUESTION]
+        question_agent.active.add(wa_ref.key)
+
+        await dispatcher.handle_text(wa_ref, "video")
+
+        assert question_agent.evaluated == [(wa_ref, "video")]
+
+    async def test_unrecognised_button_id_falls_back_to_the_menu(self, dispatcher, wa_ref,
+                                                                 fake_whatsapp_client):
+        await dispatcher.handle_text(wa_ref, "some-stale-id", from_button=True)
+
+        _, _, ids = fake_whatsapp_client.menus[-1]
+        assert "lesson" in ids
+
+    async def test_tapping_ask_then_typing_reaches_the_rag_agent(self, dispatcher,
+                                                                 orchestrator, wa_ref):
+        """Two-step flow: the button carries no text, so the next message is the question."""
+        from agents.orchestrator import AgentType
+
+        await dispatcher.handle_text(wa_ref, "ask", from_button=True)
+        assert orchestrator.agents[AgentType.RAG].queries == []
+
+        await dispatcher.handle_text(wa_ref, "what is the leave policy")
+
+        queries = orchestrator.agents[AgentType.RAG].queries
+        assert queries == [("what is the leave policy", wa_ref)]
+        # The pending state is one-shot.
+        assert wa_ref.key not in dispatcher._awaiting_question
+
+    async def test_pending_question_is_cleared_by_another_command(self, dispatcher,
+                                                                  orchestrator, wa_ref):
+        from agents.orchestrator import AgentType
+
+        await dispatcher.handle_text(wa_ref, "ask", from_button=True)
+        await dispatcher.handle_text(wa_ref, "progress", from_button=True)
+        await dispatcher.handle_text(wa_ref, "just chatting")
+
+        # The stray message must not be treated as the forgotten question.
+        assert orchestrator.agents[AgentType.RAG].queries == []
+        assert len(orchestrator.routed) == 1
+
+    async def test_telegram_gets_the_same_menu(self, dispatcher, tg_ref, fake_telegram_client):
+        """Parity: the channels must not drift."""
+        await dispatcher.handle_text(tg_ref, "/menu")
+
+        _, _, ids = fake_telegram_client.menus[-1]
+        assert ids == ["lesson", "quiz", "ask", "progress", "docs", "help"]

@@ -52,6 +52,7 @@ class RecordingDispatcher:
 
     def __init__(self):
         self.handled = []
+        self.button_taps = []
         self.registered = []
         self.unsupported = []
         self.router = self
@@ -62,8 +63,9 @@ class RecordingDispatcher:
     def register_inbound(self, ref, profile=None):
         self.registered.append((ref, profile))
 
-    async def handle_text(self, ref, text, profile=None):
+    async def handle_text(self, ref, text, profile=None, *, from_button=False):
         self.handled.append((ref, text, profile))
+        self.button_taps.append(from_button)
         return {"success": True}
 
     async def handle_unsupported(self, ref, message_type):
@@ -233,7 +235,11 @@ class TestPayloadParsing:
         assert messages[0]["text"] == "/video"
         assert messages[0]["profile_name"] == "Alice Smith"
 
-    def test_interactive_button_reply_becomes_text(self):
+    def test_interactive_button_reply_routes_by_id(self):
+        """
+        The id is the command we put on the button; the title is a human
+        label. Routing on the title would break the moment the wording changes.
+        """
         payload = {
             "object": "whatsapp_business_account",
             "entry": [{"changes": [{"value": {"messages": [{
@@ -241,12 +247,40 @@ class TestPayloadParsing:
                 "id": "wamid.BTN",
                 "type": "interactive",
                 "interactive": {"type": "button_reply",
-                                "button_reply": {"id": "quiz", "title": "Start quiz"}},
+                                "button_reply": {"id": "quiz", "title": "Take a quiz"}},
             }]}}]}],
         }
         message = extract_messages(payload)[0]
         assert message["type"] == "text"
-        assert message["text"] == "Start quiz"
+        assert message["text"] == "quiz"
+        assert message["from_button"] is True
+
+    def test_list_reply_routes_by_id(self):
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{
+                "from": "15551234567",
+                "id": "wamid.LIST",
+                "type": "interactive",
+                "interactive": {"type": "list_reply",
+                                "list_reply": {"id": "progress", "title": "My progress"}},
+            }]}}]}],
+        }
+        message = extract_messages(payload)[0]
+        assert message["text"] == "progress"
+        assert message["from_button"] is True
+
+    def test_typed_text_is_not_marked_as_a_button_tap(self):
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{
+                "from": "15551234567",
+                "id": "wamid.TXT",
+                "type": "text",
+                "text": {"body": "hello"},
+            }]}}]}],
+        }
+        assert extract_messages(payload)[0]["from_button"] is False
 
     def test_empty_payload_yields_nothing(self):
         assert extract_messages({}) == []

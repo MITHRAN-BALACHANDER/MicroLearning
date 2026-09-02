@@ -54,25 +54,25 @@ def check_environment():
     missing = []
     for var_name, var_value in required_vars.items():
         if not var_value:
-            print(f"❌ {var_name}: MISSING")
+            print(f"[FAIL] {var_name}: MISSING")
             missing.append(var_name)
         else:
-            print(f"✅ {var_name}: {_mask(var_value)}")
+            print(f"[OK] {var_name}: {_mask(var_value)}")
 
     if WHATSAPP_ENABLED:
         if WHATSAPP_APP_SECRET:
-            print(f"✅ WHATSAPP_APP_SECRET: {_mask(WHATSAPP_APP_SECRET)}")
+            print(f"[OK] WHATSAPP_APP_SECRET: {_mask(WHATSAPP_APP_SECRET)}")
         else:
-            print("⚠️  WHATSAPP_APP_SECRET: not set - webhook signatures will NOT be verified")
+            print("[WARN] WHATSAPP_APP_SECRET: not set - webhook signatures will NOT be verified")
         print(f"   Webhook path: {WHATSAPP_WEBHOOK_PATH} (port {WEBHOOK_PORT})")
         print("   Meta must be able to reach this over public HTTPS")
 
     if missing:
-        print(f"\n❌ Missing environment variables: {', '.join(missing)}")
+        print(f"\n[FAIL] Missing environment variables: {', '.join(missing)}")
         print("Please set them in your .env file")
         return False
 
-    print("\n✅ All environment variables present")
+    print("\n[OK] All environment variables present")
     return True
 
 
@@ -91,9 +91,9 @@ def check_directories():
     all_exist = True
     for dir_name, dir_path in directories.items():
         if dir_path.exists():
-            print(f"✅ {dir_name}: {dir_path}")
+            print(f"[OK] {dir_name}: {dir_path}")
         else:
-            print(f"⚠️  {dir_name}: {dir_path} (creating...)")
+            print(f"[WARN] {dir_name}: {dir_path} (creating...)")
             dir_path.mkdir(parents=True, exist_ok=True)
             all_exist = False
     
@@ -111,7 +111,7 @@ def check_database():
         # querying, otherwise an older database fails on the newer model.
         applied = init_db()
         if applied:
-            print(f"✅ Schema upgraded: {', '.join(applied)}")
+            print(f"[OK] Schema upgraded: {', '.join(applied)}")
 
         with get_db() as db:
             # Check tables
@@ -130,20 +130,20 @@ def check_database():
                 if q_count == 0:
                     videos_without_questions += 1
             
-            print(f"✅ Database: {DATABASE_URL}")
+            print(f"[OK] Database: {DATABASE_URL}")
             print(f"   Users: {user_count}")
             print(f"   Videos: {video_count}")
             print(f"   Questions: {question_count}")
             
             if videos_without_questions > 0:
-                print(f"   ⚠️  Videos without questions: {videos_without_questions}")
+                print(f"   [WARN] Videos without questions: {videos_without_questions}")
                 print(f"      Run: python scripts/generate_all_questions.py")
             else:
-                print(f"   ✅ All videos have questions")
+                print(f"   [OK] All videos have questions")
             
             return True
     except Exception as e:
-        print(f"❌ Database error: {e}")
+        print(f"[FAIL] Database error: {e}")
         return False
 
 
@@ -168,7 +168,7 @@ def check_videos():
             videos = db.query(Video).filter(Video.is_active == True).all()
 
             if not videos:
-                print("⚠️  No videos in database")
+                print("[WARN] No videos in database")
                 print("   Run: python scripts/reset_videos_from_folder.py")
                 return False
 
@@ -196,32 +196,32 @@ def check_videos():
                 any_deliverable = any_deliverable or deliverable > 0
 
                 print(f"{platform.upper()}:")
-                print(f"   ✅ Already published: {len(published)}")
+                print(f"   [OK] Already published: {len(published)}")
                 if uploadable:
-                    print(f"   ⬆️  Ready to upload:  {len(uploadable)}")
+                    print(f"   [UPLOAD] Ready to upload:  {len(uploadable)}")
                     print(f"      Pre-publish with: python scripts/publish_videos.py --all --platform {platform}")
                 for title, size in oversized:
-                    print(f"   ❌ Too large for WhatsApp ({size / 1024 / 1024:.1f} MB > 16 MB): {title[:50]}")
+                    print(f"   [FAIL] Too large for WhatsApp ({size / 1024 / 1024:.1f} MB > 16 MB): {title[:50]}")
                 for title in blocked:
-                    print(f"   ❌ No cached media and source file missing: {title[:50]}")
+                    print(f"   [FAIL] No cached media and source file missing: {title[:50]}")
                 print(f"   -> {deliverable}/{len(videos)} deliverable\n")
 
             if not any_deliverable:
-                print("❌ No videos can be delivered on any enabled platform")
+                print("[FAIL] No videos can be delivered on any enabled platform")
                 return False
 
             return True
     except Exception as e:
-        print(f"❌ Video check error: {e}")
+        print(f"[FAIL] Video check error: {e}")
         return False
 
 
 def main():
     """Run all pre-flight checks"""
     print("\n")
-    print("🚀" * 30)
+    print("" * 30)
     print("MICROLEARNING BOT - PRODUCTION STARTUP")
-    print("🚀" * 30)
+    print("" * 30)
     print()
     
     checks = [
@@ -238,7 +238,7 @@ def main():
     
     print("\n" + "=" * 60)
     if all_passed:
-        print("✅ ALL CHECKS PASSED - READY TO START")
+        print("[OK] ALL CHECKS PASSED - READY TO START")
         print("=" * 60)
         print("\nStarting bot...")
         print()
@@ -248,7 +248,7 @@ def main():
         bot = MicroLearningBot()
         bot.run()
     else:
-        print("❌ SOME CHECKS FAILED - PLEASE FIX ISSUES ABOVE")
+        print("[FAIL] SOME CHECKS FAILED - PLEASE FIX ISSUES ABOVE")
         print("=" * 60)
         sys.exit(1)
 
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n⏹️  Startup cancelled by user")
+        print("\n⏹ Startup cancelled by user")
     except Exception as e:
-        print(f"\n❌ Startup error: {e}")
+        print(f"\n[FAIL] Startup error: {e}")
         sys.exit(1)

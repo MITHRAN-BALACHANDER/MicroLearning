@@ -96,16 +96,24 @@ def extract_messages(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
 
                 message_type = message.get("type", "unknown")
                 text = ""
+                from_button = False
 
                 if message_type == "text":
                     text = (message.get("text") or {}).get("body", "")
                 elif message_type == "interactive":
                     interactive = message.get("interactive") or {}
                     reply = interactive.get("button_reply") or interactive.get("list_reply") or {}
-                    text = reply.get("title") or reply.get("id") or ""
+                    # The id is ours - it is the command name we put on the
+                    # button. The title is a human label ("Take a quiz") that
+                    # would never parse as a command, so id wins.
+                    text = reply.get("id") or reply.get("title") or ""
+                    from_button = bool(text)
                     message_type = "text" if text else message_type
                 elif message_type == "button":
-                    text = (message.get("button") or {}).get("text", "")
+                    # Quick-reply button on a template message.
+                    button = message.get("button") or {}
+                    text = button.get("payload") or button.get("text", "")
+                    from_button = bool(text)
                     message_type = "text" if text else message_type
 
                 messages.append({
@@ -113,6 +121,7 @@ def extract_messages(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "message_id": message.get("id"),
                     "type": message_type,
                     "text": text,
+                    "from_button": from_button,
                     "profile_name": names.get(sender),
                     "timestamp": message.get("timestamp"),
                 })
@@ -265,8 +274,14 @@ async def _process(dispatcher, message: Dict[str, Any]) -> None:
         await dispatcher.handle_unsupported(ref, message["type"])
         return
 
-    logger.info(f"WhatsApp inbound from {ref}: {message['text'][:80]}")
-    await dispatcher.handle_text(ref, message["text"], profile)
+    if message.get("from_button"):
+        logger.info(f"WhatsApp menu tap from {ref}: {message['text'][:80]}")
+    else:
+        logger.info(f"WhatsApp inbound from {ref}: {message['text'][:80]}")
+
+    await dispatcher.handle_text(
+        ref, message["text"], profile, from_button=bool(message.get("from_button"))
+    )
 
 
 def run_webhook_server(app: Flask, host: str = None, port: int = None) -> None:
