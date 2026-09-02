@@ -41,6 +41,9 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
+    # The image defaults to `python main.py` so a cloud deploy can never be
+    # killed by a failed pre-flight check; locally the checks are wanted.
+    command: ["python", "start_bot.py"]
     env_file: Agents/.env
     environment:
       DATABASE_URL: postgresql://ml_user:ml_pass@postgres:5432/microlearning

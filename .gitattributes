@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# These are consumed by Linux shells and Docker; CRLF breaks the shebang and
+# can break RUN line continuations, so keep them LF even on Windows checkouts.
+*.sh text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf

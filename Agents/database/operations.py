@@ -16,7 +16,18 @@ from config.settings import DATABASE_URL
 
 
 # Create engine
-engine = create_engine(DATABASE_URL, echo=False)
+#
+# Free-tier Postgres (Neon, Supabase, Railway) suspends idle compute and drops
+# pooled connections behind our back. Without pre-ping the first query after a
+# quiet spell raises "server closed the connection unexpectedly" - which on the
+# WhatsApp path means Meta gets a 500 and retries. Pre-ping revalidates the
+# connection first, and a short recycle keeps us from holding dead ones.
+_engine_kwargs = {"echo": False, "pool_pre_ping": True}
+
+if DATABASE_URL.startswith(("postgresql", "postgres:")):
+    _engine_kwargs.update(pool_size=5, max_overflow=5, pool_recycle=300)
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

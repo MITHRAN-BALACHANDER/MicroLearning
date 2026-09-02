@@ -217,28 +217,35 @@ def create_app(dispatcher=None, worker=None, orchestrator=None) -> Flask:
             # Not ours; still 200 so Meta does not retry forever.
             return jsonify({"status": "ignored"}), 200
 
-        for status in extract_statuses(payload):
-            if status.get("errors"):
-                logger.warning(
-                    f"WhatsApp delivery error for {status.get('recipient_id')}: {status['errors']}"
-                )
-            else:
-                logger.debug(
-                    f"WhatsApp status {status.get('status')} for {status.get('recipient_id')}"
-                )
+        try:
+            for status in extract_statuses(payload):
+                if status.get("errors"):
+                    logger.warning(
+                        f"WhatsApp delivery error for {status.get('recipient_id')}: {status['errors']}"
+                    )
+                else:
+                    logger.debug(
+                        f"WhatsApp status {status.get('status')} for {status.get('recipient_id')}"
+                    )
 
-        accepted = 0
-        for message in extract_messages(payload):
-            if deduper.seen_before(message["message_id"]):
-                logger.debug(f"Skipping duplicate WhatsApp message {message['message_id']}")
-                continue
+            accepted = 0
+            for message in extract_messages(payload):
+                if deduper.seen_before(message["message_id"]):
+                    logger.debug(f"Skipping duplicate WhatsApp message {message['message_id']}")
+                    continue
 
-            if dispatcher is None or worker is None:
-                logger.error("Webhook received a message but no dispatcher is wired up")
-                continue
+                if dispatcher is None or worker is None:
+                    logger.error("Webhook received a message but no dispatcher is wired up")
+                    continue
 
-            worker.submit(_process(dispatcher, message))
-            accepted += 1
+                worker.submit(_process(dispatcher, message))
+                accepted += 1
+        except Exception as exc:  # noqa: BLE001
+            # A 5xx makes Meta retry, and sustained failures get the whole
+            # subscription disabled. An unexpected payload shape is our problem
+            # to fix from the logs, not a reason to lose the webhook.
+            logger.exception(f"Failed to handle WhatsApp webhook payload: {exc}")
+            return jsonify({"status": "error"}), 200
 
         return jsonify({"status": "received", "accepted": accepted}), 200
 

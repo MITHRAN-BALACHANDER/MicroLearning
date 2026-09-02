@@ -1,0 +1,33 @@
+# Build context hygiene: everything here is either huge, secret, or rebuilt
+# inside the image. Keeping it out makes free-tier builds fast enough to finish.
+
+.git/
+.github/
+venv/
+Agents/venv/
+Agents/env/
+
+# Secrets - injected as platform env vars, never baked into the image
+Agents/.env
+Agents/.env.*
+!Agents/.env.example
+
+# Local state that must not travel to a shared host
+Agents/data/
+Agents/data.zip
+Agents/logs/
+Agents/*.db
+Agents/*.sqlite3
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# The Next.js dashboard has its own Dockerfile
+Agents/nextjs/node_modules/
+Agents/nextjs/.next/
+
+# Docs and scratch
+*.md
+.DS_Store

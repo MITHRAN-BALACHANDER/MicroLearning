@@ -1,0 +1,46 @@
+name: Keepalive
+
+# Free hosts pause an app that sees no traffic (Hugging Face Spaces after ~48h
+# of inactivity, Render after 15 minutes). A paused app means Meta's webhook
+# delivery hits a cold start, times out, and after enough failures Meta disables
+# the subscription. This pings /health often enough that the app never idles.
+#
+# Setup: Settings -> Secrets and variables -> Actions -> Variables ->
+#   HEALTH_URL = https://<your-space>.hf.space/health
+
+on:
+  schedule:
+    # Every 4 hours. Comfortably inside a 48h idle timeout, and ~180 runs a
+    # month so it stays well within the free Actions minutes on a private repo.
+    - cron: "0 */4 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping /health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the app is awake and serving
+        env:
+          HEALTH_URL: ${{ vars.HEALTH_URL }}
+        run: |
+          if [ -z "$HEALTH_URL" ]; then
+            echo "::error::Repository variable HEALTH_URL is not set."
+            exit 1
+          fi
+
+          # A sleeping Space can take a while to boot, so allow a slow first
+          # response rather than reporting a false outage.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' \
+                     --max-time 120 "$HEALTH_URL" || echo 000)
+            echo "attempt $attempt -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 30
+          done
+
+          echo "::error::$HEALTH_URL did not return 200 after 3 attempts."
+          exit 1
