@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, Integer
 from werkzeug.utils import secure_filename
 
-from database.operations import SessionLocal
+from database.operations import SessionLocal, init_db
 from database.models import User, Video, VideoProgress, Question, QuizAttempt, Document
 from config.settings import ADMIN_USERNAME, ADMIN_PASSWORD
 from utils.video_processor import VideoProcessor
@@ -1132,7 +1132,10 @@ def api_clear_cache():
 if __name__ == '__main__':
     # Create upload folder if not exists
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    
+
+    # Ensure database tables exist (dashboard can be run standalone, before the bot)
+    init_db()
+
     print("="*60)
     print("MicroLearning Bot - Admin Dashboard")
     print("="*60)

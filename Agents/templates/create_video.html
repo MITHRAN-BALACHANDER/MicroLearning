@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block title %}Create Video - MicroLearning Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .clip-item {
+        transition: all 0.2s;
+    }
+    .clip-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .drag-handle {
+        cursor: move;
+    }
+    .upload-zone {
+        border: 2px dashed #d4d4d4;
+        transition: all 0.3s;
+    }
+    .upload-zone.dragover {
+        border-color: #171717;
+        background-color: #f5f5f5;
+    }
+    .progress-bar {
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <a href="{{ url_for('videos') }}" class="text-sm text-neutral-600 hover:text-neutral-900 inline-flex items-center mb-4">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Back to Videos
+    </a>
+    <h1 class="text-3xl font-semibold text-neutral-900 tracking-tight">Create Video</h1>
+    <p class="mt-2 text-sm text-neutral-600">Upload clips and compile into a final video</p>
+</div>
+
+<!-- Video Info Form -->
+<div class="bg-white border border-neutral-200 rounded-lg p-6 mb-6">
+    <h3 class="text-lg font-semibold text-neutral-900 mb-4">Video Information</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label for="video-title" class="block text-sm font-medium text-neutral-900 mb-2">Title <span class="text-red-600">*</span></label>
+            <input type="text" id="video-title" required
+                   class="w-full px-4 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all bg-white text-neutral-900"
+                   placeholder="Enter video title">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-neutral-900 mb-2">Options</label>
+            <div class="flex gap-4 pt-2">
+                <label class="flex items-center">
+                    <input type="checkbox" id="add-title-screen" class="w-4 h-4 text-neutral-900 border-neutral-300 rounded focus:ring-neutral-900">
+                    <span class="ml-2 text-sm text-neutral-700">Add title screen</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="add-transitions" checked class="w-4 h-4 text-neutral-900 border-neutral-300 rounded focus:ring-neutral-900">
+                    <span class="ml-2 text-sm text-neutral-700">Add transitions</span>
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="mt-4">
+        <label for="video-description" class="block text-sm font-medium text-neutral-900 mb-2">Description</label>
+        <textarea id="video-description" rows="3"
+                  class="w-full px-4 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all bg-white text-neutral-900"
+                  placeholder="Enter video description"></textarea>
+    </div>
+</div>
+
+<!-- Upload Zone -->
+<div class="bg-white border border-neutral-200 rounded-lg p-6 mb-6">
+    <h3 class="text-lg font-semibold text-neutral-900 mb-4">Upload Clips</h3>
+    
+    <div class="upload-zone rounded-lg p-8 text-center mb-4" id="upload-zone">
+        <input type="file" id="clip-input" accept="video/*" class="hidden" multiple>
+        <svg class="mx-auto h-12 w-12 text-neutral-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+        <p class="text-sm font-medium text-neutral-900 mb-1">Click to upload or drag and drop</p>
+        <p class="text-xs text-neutral-500">MP4, AVI, MOV, MKV, WEBM up to 500MB per file</p>
+    </div>
+    
+    <div id="upload-progress" class="hidden mb-4">
+        <div class="flex justify-between text-xs text-neutral-600 mb-1">
+            <span id="progress-text">Uploading...</span>
+            <span id="progress-percent">0%</span>
+        </div>
+        <div class="w-full bg-neutral-200 rounded-full h-2">
+            <div class="progress-bar bg-neutral-900 h-2 rounded-full" style="width: 0%" id="progress-bar"></div>
+        </div>
+    </div>
+    
+    <div class="text-xs text-neutral-500 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Drag clips to reorder. Maximum total duration: 1 hour</span>
+    </div>
+</div>
+
+<!-- Clips List -->
+<div class="bg-white border border-neutral-200 rounded-lg p-6 mb-6">
+    <h3 class="text-lg font-semibold text-neutral-900 mb-4">
+        Clips (<span id="clip-count">0</span>)
+        <span class="text-sm font-normal text-neutral-600 ml-2">Total: <span id="total-duration">0:00</span></span>
+    </h3>
+    
+    <div id="clips-list" class="space-y-2">
+        <div class="text-center py-8 text-sm text-neutral-500">
+            No clips uploaded yet. Upload clips above to get started.
+        </div>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="flex gap-3">
+    <button id="compile-btn" disabled
+            class="px-6 py-2.5 text-sm font-semibold text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+        <svg class="inline-block w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg>
+        Compile Video
+    </button>
+    <button id="cancel-btn"
+            class="px-6 py-2.5 text-sm font-semibold text-neutral-900 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors">
+        Cancel
+    </button>
+</div>
+
+<!-- Compilation Modal -->
+<div id="compile-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+        <div class="text-center">
+            <div class="mb-4">
+                <svg class="animate-spin h-12 w-12 text-neutral-900 mx-auto" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-neutral-900 mb-2">Compiling Video</h3>
+            <p class="text-sm text-neutral-600 mb-4" id="compile-status">Processing clips...</p>
+            <div class="w-full bg-neutral-200 rounded-full h-2">
+                <div class="bg-neutral-900 h-2 rounded-full transition-all duration-500" style="width: 0%" id="compile-progress"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="session-id" value="{{ session_id }}">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const sessionId = document.getElementById('session-id').value;
+let clips = [];
+let isUploading = false;
+
+// DOM Elements
+const uploadZone = document.getElementById('upload-zone');
+const clipInput = document.getElementById('clip-input');
+const clipsList = document.getElementById('clips-list');
+const compileBtn = document.getElementById('compile-btn');
+const cancelBtn = document.getElementById('cancel-btn');
+const uploadProgress = document.getElementById('upload-progress');
+const progressBar = document.getElementById('progress-bar');
+const progressText = document.getElementById('progress-text');
+const progressPercent = document.getElementById('progress-percent');
+const compileModal = document.getElementById('compile-modal');
+
+// Upload zone click
+uploadZone.addEventListener('click', () => clipInput.click());
+
+// File input change
+clipInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+// Drag and drop
+uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+    uploadZone.classList.remove('dragover');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+
+// Handle file uploads
+async function handleFiles(files) {
+    if (isUploading) return;
+    
+    for (const file of files) {
+        if (!file.type.startsWith('video/')) {
+            showError('Please upload video files only');
+            continue;
+        }
+        
+        await uploadClip(file);
+    }
+}
+
+// Upload single clip
+async function uploadClip(file) {
+    isUploading = true;
+    uploadProgress.classList.remove('hidden');
+    progressText.textContent = `Uploading ${file.name}...`;
+    
+    const formData = new FormData();
+    formData.append('clip', file);
+    formData.append('session_id', sessionId);
+    
+    try {
+        const response = await fetch('/videos/create/upload-clip', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            clips.push(data.clip);
+            renderClips();
+            progressBar.style.width = '100%';
+            progressPercent.textContent = '100%';
+            setTimeout(() => {
+                uploadProgress.classList.add('hidden');
+                progressBar.style.width = '0%';
+                progressPercent.textContent = '0%';
+            }, 1000);
+        } else {
+            showError(data.error);
+        }
+    } catch (error) {
+        showError('Failed to upload clip: ' + error.message);
+    } finally {
+        isUploading = false;
+        clipInput.value = '';
+    }
+}
+
+// Render clips list
+function renderClips() {
+    if (clips.length === 0) {
+        clipsList.innerHTML = '<div class="text-center py-8 text-sm text-neutral-500">No clips uploaded yet. Upload clips above to get started.</div>';
+        compileBtn.disabled = true;
+        return;
+    }
+    
+    clipsList.innerHTML = clips.map((clip, index) => `
+        <div class="clip-item bg-neutral-50 border border-neutral-200 rounded-lg p-4 flex items-center gap-4" data-path="${clip.path}">
+            <div class="drag-handle text-neutral-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
+            </div>
+            <div class="flex-1">
+                <div class="text-sm font-medium text-neutral-900">${clip.filename}</div>
+                <div class="text-xs text-neutral-600 mt-1">
+                    ${formatDuration(clip.duration)} • ${clip.resolution} • ${clip.fps} fps
+                    ${clip.has_audio ? '<span class="ml-2">🔊</span>' : '<span class="ml-2">🔇</span>'}
+                </div>
+            </div>
+            <button onclick="removeClip('${clip.path}')" class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors">
+                Remove
+            </button>
+        </div>
+    `).join('');
+    
+    updateStats();
+    compileBtn.disabled = false;
+}
+
+// Remove clip
+async function removeClip(filepath) {
+    if (!confirm('Remove this clip?')) return;
+    
+    try {
+        const response = await fetch('/videos/create/remove-clip', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filepath})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            clips = clips.filter(c => c.path !== filepath);
+            renderClips();
+        }
+    } catch (error) {
+        showError('Failed to remove clip: ' + error.message);
+    }
+}
+
+// Update statistics
+function updateStats() {
+    const totalDuration = clips.reduce((sum, clip) => sum + clip.duration, 0);
+    document.getElementById('clip-count').textContent = clips.length;
+    document.getElementById('total-duration').textContent = formatDuration(totalDuration);
+}
+
+// Compile video
+compileBtn.addEventListener('click', async () => {
+    const title = document.getElementById('video-title').value.trim();
+    if (!title) {
+        showError('Please enter a video title');
+        return;
+    }
+    
+    if (clips.length === 0) {
+        showError('Please upload at least one clip');
+        return;
+    }
+    
+    const description = document.getElementById('video-description').value.trim();
+    const addTitleScreen = document.getElementById('add-title-screen').checked;
+    const addTransitions = document.getElementById('add-transitions').checked;
+    const clipOrder = clips.map(c => c.path);
+    
+    compileModal.classList.remove('hidden');
+    document.getElementById('compile-status').textContent = 'Processing clips...';
+    
+    try {
+        const response = await fetch('/videos/create/compile', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                session_id: sessionId,
+                title,
+                description,
+                clip_order: clipOrder,
+                add_title_screen: addTitleScreen,
+                add_transitions: addTransitions
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('compile-status').textContent = 'Video compiled successfully!';
+            document.getElementById('compile-progress').style.width = '100%';
+            setTimeout(() => {
+                window.location.href = '/videos';
+            }, 2000);
+        } else {
+            compileModal.classList.add('hidden');
+            showError(data.error);
+        }
+    } catch (error) {
+        compileModal.classList.add('hidden');
+        showError('Failed to compile video: ' + error.message);
+    }
+});
+
+// Cancel
+cancelBtn.addEventListener('click', async () => {
+    if (clips.length > 0 && !confirm('Cancel video creation? All uploaded clips will be deleted.')) {
+        return;
+    }
+    
+    await fetch('/videos/create/cancel', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: sessionId})
+    });
+    
+    window.location.href = '/videos';
+});
+
+// Utility functions
+function formatDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function showError(message) {
+    alert(message); // In production, use a better notification system
+}
+</script>
+{% endblock %}

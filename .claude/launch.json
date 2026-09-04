@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "admin-dashboard",
+      "runtimeExecutable": "venv/Scripts/python.exe",
+      "runtimeArgs": ["Agents/admin_dashboard.py"],
+      "port": 5000
+    }
+  ]
+}
