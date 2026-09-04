@@ -52,11 +52,16 @@ class FakeClient:
         self.max_text_chars = max_text_chars
         self.max_caption_chars = max_caption_chars
         self.max_video_bytes = 16 * 1024 * 1024
+        self.max_download_bytes = 16 * 1024 * 1024
         self.messages = []
         self.menus = []
         self.videos = []
         self.read_receipts = []
+        self.downloads = []
         self.fail_with = None
+        # What download_media hands back; set download_error to make it fail.
+        self.download_payload = b"fake-audio-bytes"
+        self.download_error = None
 
     def truncate_caption(self, caption):
         if caption and len(caption) > self.max_caption_chars:
@@ -103,6 +108,18 @@ class FakeClient:
         from messaging.base import OutboundResult
 
         return OutboundResult(success=True, platform=self.platform, media_ref="uploaded-ref")
+
+    async def download_media(self, media_ref, *, max_bytes=None):
+        from messaging.base import DownloadedMedia
+
+        if self.download_error:
+            raise self.download_error
+        self.downloads.append((media_ref, max_bytes))
+        return DownloadedMedia(
+            data=self.download_payload,
+            mime_type="audio/ogg",
+            filename=f"{media_ref}.ogg",
+        )
 
     async def mark_read(self, message_id):
         self.read_receipts.append(message_id)

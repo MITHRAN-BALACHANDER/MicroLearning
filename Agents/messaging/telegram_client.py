@@ -1,6 +1,7 @@
 """
 Telegram implementation of MessagingClient (python-telegram-bot).
 """
+import mimetypes
 import os
 from typing import Optional
 
@@ -18,6 +19,7 @@ from telegram.error import (
 
 from messaging.base import (
     Choice,
+    DownloadedMedia,
     MessagingClient,
     OutboundResult,
     PermanentMessagingError,
@@ -33,6 +35,7 @@ class TelegramClient(MessagingClient):
     max_text_chars = 4096
     max_caption_chars = 1024
     max_video_bytes = 50 * 1024 * 1024  # Bot API upload limit
+    max_download_bytes = 20 * 1024 * 1024  # Bot API getFile download limit
 
     def __init__(self, bot: Bot):
         self.bot = bot
@@ -146,6 +149,58 @@ class TelegramClient(MessagingClient):
             platform=self.platform,
             message_id=str(message.message_id),
             media_ref=message.video.file_id if message.video else media_ref,
+        )
+
+    # -- inbound ----------------------------------------------------------
+
+    async def download_media(self, media_ref: str, *,
+                             max_bytes: Optional[int] = None) -> DownloadedMedia:
+        """
+        Fetch a voice note or audio file by file_id.
+
+        Telegram is a two-step fetch: getFile resolves the id to a temporary
+        path and reports the size, then the bytes are pulled. Checking the
+        reported size first means an oversized file costs one small API call
+        rather than a 20 MB download we then throw away.
+        """
+        if not media_ref:
+            raise PermanentMessagingError(
+                "No Telegram file_id to download",
+                platform=self.platform,
+            )
+
+        limit = max_bytes or self.max_download_bytes
+
+        try:
+            handle = await self.bot.get_file(
+                media_ref, read_timeout=30, connect_timeout=20
+            )
+        except Exception as exc:
+            raise _translate(exc) from exc
+
+        size = getattr(handle, "file_size", None) or 0
+        if size and size > limit:
+            raise PermanentMessagingError(
+                f"Audio is {size / 1024 / 1024:.1f} MB; the limit is "
+                f"{limit / 1024 / 1024:.0f} MB",
+                platform=self.platform,
+                suggestion="Ask the learner to send a shorter recording.",
+            )
+
+        try:
+            buffer = await handle.download_as_bytearray(read_timeout=60)
+        except Exception as exc:
+            raise _translate(exc) from exc
+
+        # Telegram reports no MIME type on getFile, but the temp path keeps the
+        # extension (voice notes are .oga), which is enough for logging.
+        file_path = getattr(handle, "file_path", "") or ""
+        filename = os.path.basename(file_path) or f"{media_ref}.oga"
+
+        return DownloadedMedia(
+            data=bytes(buffer),
+            mime_type=mimetypes.guess_type(filename)[0],
+            filename=filename,
         )
 
     async def upload_video(self, file_path: str, *, staging_chat_id: Optional[str] = None) -> OutboundResult:

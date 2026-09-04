@@ -274,11 +274,13 @@ def list_media_refs(video_id: int) -> List[VideoMedia]:
 
 # Question Operations
 def add_question(video_id: int, question_text: str, question_type: str = "open",
-                correct_answer: str = None, concepts_tested: list = None, difficulty: int = 1) -> Question:
+                correct_answer: str = None, concepts_tested: list = None, difficulty: int = 1,
+                scenario: str = None) -> Question:
     """Add a question for a video"""
     with get_db() as db:
         question = Question(
             video_id=video_id,
+            scenario=scenario,
             question_text=question_text,
             question_type=question_type,
             correct_answer=correct_answer,

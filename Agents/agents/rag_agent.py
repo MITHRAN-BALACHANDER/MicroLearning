@@ -16,6 +16,24 @@ from messaging.base import UserRef
 from messaging.formatting import DIVIDER, bold, bullets, italic, paragraphs, sanitize
 
 
+def detect_query_language(query: str) -> str:
+    """Detect the supported learner language from script and common romanization."""
+    text = (query or "").strip().lower()
+    if any("\u0900" <= character <= "\u097f" for character in text):
+        return "hi"
+    if any("\u0b80" <= character <= "\u0bff" for character in text):
+        return "ta"
+
+    words = set(text.replace("?", " ").split())
+    tamil_words = {"enaku", "enakku", "evalo", "evlo", "iruku", "irukku", "masathula", "venum"}
+    hindi_words = {"mujhe", "kitni", "chhutti", "mahine", "mein", "milega", "kaise", "kyon", "kyun"}
+    if words & tamil_words:
+        return "ta"
+    if words & hindi_words:
+        return "hi"
+    return "en"
+
+
 class RAGAgent:
     """
     Dynamic agent responsible for:
@@ -53,9 +71,50 @@ class RAGAgent:
             name="company_docs",
             metadata={"hnsw:space": "cosine"}
         )
+
+        self._restore_document_index()
         
         self.active_queries = {}
         logger.info(f"Initialized {self.name} with ChromaDB")
+
+    def _restore_document_index(self) -> None:
+        """Restore stored document content when the vector index is empty."""
+        if self.collection.count() > 0:
+            return
+
+        documents = get_active_documents()
+        indexed = 0
+        for document in documents:
+            if not document.content:
+                continue
+
+            chunks = self._chunk_text(document.content, chunk_size=500, overlap=50)
+            if not chunks:
+                continue
+
+            ids = [f"doc_{document.id}_chunk_{i}" for i in range(len(chunks))]
+            embeddings = self.embedding_model.encode(chunks).tolist()
+            metadatas = [
+                {
+                    "doc_id": document.id,
+                    "title": document.title,
+                    "doc_type": document.doc_type,
+                    "chunk_index": i,
+                }
+                for i in range(len(chunks))
+            ]
+            self.collection.add(
+                ids=ids,
+                embeddings=embeddings,
+                documents=chunks,
+                metadatas=metadatas,
+            )
+            indexed += len(chunks)
+
+        if indexed:
+            logger.info(f"Restored {indexed} document chunks into ChromaDB")
+        else:
+            logger.warning("No document content available to index into ChromaDB")
     
     async def index_document(self, doc_id: int, title: str, content: str, 
                             doc_type: str, metadata: Dict = None) -> Dict[str, Any]:
@@ -110,6 +169,25 @@ class RAGAgent:
         except Exception as e:
             logger.error(f"Error indexing document: {str(e)}")
             return {"success": False, "error": str(e)}
+
+    async def _translate_query(self, query: str, language: str) -> str:
+        """Translate a non-English query so the English document index can match it."""
+        language_name = {"ta": "Tamil", "hi": "Hindi"}[language]
+        prompt = (
+            f"Translate this {language_name} question into concise English for semantic "
+            f"document search. Return only the translation.\n\nQuestion: {query}"
+        )
+        try:
+            response = await asyncio.to_thread(
+                self.model.generate_content,
+                prompt,
+                generation_config={"temperature": 0, "max_output_tokens": 120},
+            )
+            translated = (response.text or "").strip()
+            return translated or query
+        except Exception as exc:  # noqa: BLE001 - original query remains usable
+            logger.warning(f"Could not translate {language_name} query for search: {exc}")
+            return query
     
     async def query_documents(self, query: str, ref: UserRef,
                              n_results: int = 5) -> Dict[str, Any]:
@@ -135,8 +213,16 @@ class RAGAgent:
                 "timestamp": None
             }
             
-            # Encode query
-            query_embedding = self.embedding_model.encode([query])[0].tolist()
+            language = detect_query_language(query)
+            search_query = (
+                await self._translate_query(query, language)
+                if language != "en"
+                else query
+            )
+
+            # The collection uses an English embedding model, so search with an
+            # English reading while preserving the learner's language for the answer.
+            query_embedding = self.embedding_model.encode([search_query])[0].tolist()
             
             # Search in ChromaDB
             results = self.collection.query(
@@ -145,10 +231,18 @@ class RAGAgent:
             )
             
             if not results['documents'] or not results['documents'][0]:
+                answer = (
+                    "I couldn't find any company documents to search yet. "
+                    "Please ask your administrator to upload the leave policy or "
+                    "employee handbook, then try again."
+                )
+                await self.router.send_message(ref, answer)
+                logger.warning(
+                    f"No document chunks available for query from {ref}: {query[:120]}"
+                )
                 return {
                     "success": True,
-                    "answer": "I couldn't find any relevant information in the company documents. "
-                             "Please try rephrasing your question or contact HR for assistance.",
+                    "answer": answer,
                     "sources": []
                 }
             
@@ -169,7 +263,8 @@ Company Documents:
 
 Question: {query}
 
-Provide a clear answer citing the source documents."""
+Provide a clear answer citing the source documents.
+Answer in {"Tamil" if language == "ta" else "Hindi" if language == "hi" else "English"}."""
             
             logger.debug(f"Prompt length: {len(prompt)} characters")
             

@@ -124,8 +124,69 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6437411483")  # Mithran's ID
 # through this chat to obtain a reusable file_id.
 TELEGRAM_UPLOAD_STAGING_CHAT_ID = os.getenv("TELEGRAM_UPLOAD_STAGING_CHAT_ID", ADMIN_CHAT_ID)
 
+# ---------------------------------------------------------------------------
+# Voice input (local speech-to-text)
+# ---------------------------------------------------------------------------
+# Learners can send a voice note instead of typing. Transcription runs locally
+# with faster-whisper, so audio never leaves this machine and there is no
+# per-minute API cost. See docs/VOICE_INPUT.md.
+
+VOICE_INPUT_ENABLED = _env_flag("VOICE_INPUT_ENABLED", "true")
+
+# Echo the transcript back ("Heard: ...") before acting on it. Worth keeping on
+# while tuning the model, since it is the only way a learner can tell they were
+# misheard. Turn it off once transcription is trusted and the extra message is
+# just noise in the thread.
+VOICE_ECHO_TRANSCRIPT = _env_flag("VOICE_ECHO_TRANSCRIPT", "true")
+
+# When a voice note is not in English and what was heard does not match any
+# command, run Whisper's speech-to-English translation and try again. This is
+# what lets a learner speak a command in their own language without anyone
+# maintaining a keyword list per language. Costs a second inference pass, and
+# only on clips that would otherwise have fallen through to the menu.
+VOICE_TRANSLATE_FOR_COMMANDS = _env_flag("VOICE_TRANSLATE_FOR_COMMANDS", "true")
+
+# Model size. Bigger is more accurate and slower:
+#   tiny / base       - fast, only for clean English
+#   small             - the default; the accuracy/speed knee on CPU
+#   medium            - noticeably better on accents and noise
+#   large-v3          - best accuracy
+#   large-v3-turbo    - near-large accuracy at several times the speed (GPU)
+# distil-large-v3 and any CTranslate2 model id on Hugging Face also work.
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
+
+# auto | cpu | cuda - "auto" uses the GPU when CTranslate2 can see one
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
+# auto | int8 | int8_float16 | float16 | float32
+# "auto" means int8 on CPU and float16 on GPU
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "auto")
+
+# Empty means detect the language of every clip, which is what a multilingual
+# workforce needs. Pin it ("en", "ta", "hi") to make transcription faster and
+# stop short clips being mis-detected.
+WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "").strip() or None
+
+# 1 = greedy. Voice notes are short and conversational, so the extra beams
+# mostly buy latency rather than accuracy.
+WHISPER_BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "1"))
+# Trim silence before decoding: faster, and it stops Whisper inventing words
+# over the dead air at the end of a recording.
+WHISPER_VAD_FILTER = _env_flag("WHISPER_VAD_FILTER", "true")
+# 0 lets CTranslate2 choose. Set it lower to leave headroom for the bot itself.
+WHISPER_CPU_THREADS = int(os.getenv("WHISPER_CPU_THREADS", "0"))
+# Where model weights are cached; pre-seed this for an offline deployment.
+WHISPER_MODEL_DIR = os.getenv("WHISPER_MODEL_DIR", str(DATA_DIR / "models" / "whisper"))
+# Load the model at startup rather than making the first learner wait for it.
+WHISPER_PRELOAD = _env_flag("WHISPER_PRELOAD", "true")
+
+# Guardrails. A voice note is a sentence or two; anything much longer is an
+# accident (a pocket recording, a forwarded podcast) and would tie up a worker
+# thread for minutes.
+VOICE_MAX_SECONDS = int(os.getenv("VOICE_MAX_SECONDS", "300"))
+VOICE_MAX_BYTES = int(float(os.getenv("VOICE_MAX_MB", "16")) * 1024 * 1024)
+
 # Create directories if they don't exist
-for directory in [DATA_DIR, DOCUMENTS_DIR, VIDEOS_DIR, LOGS_DIR]:
+for directory in [DATA_DIR, DOCUMENTS_DIR, VIDEOS_DIR, LOGS_DIR, Path(WHISPER_MODEL_DIR)]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # Agent Prompts

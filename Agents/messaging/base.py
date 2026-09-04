@@ -134,6 +134,26 @@ class InboundMessage:
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     message_type: str = "text"
+    # Set on voice notes and audio files: the platform handle needed to fetch
+    # the bytes (Telegram file_id / WhatsApp media id) plus what we know about
+    # them before downloading.
+    media_ref: Optional[str] = None
+    mime_type: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    filename: Optional[str] = None
+
+
+@dataclass
+class DownloadedMedia:
+    """Bytes fetched back from a platform, with whatever metadata came along."""
+
+    data: bytes
+    mime_type: Optional[str] = None
+    filename: Optional[str] = None
+
+    @property
+    def size(self) -> int:
+        return len(self.data)
 
 
 @dataclass(frozen=True)
@@ -242,6 +262,8 @@ class MessagingClient(ABC):
     max_text_chars: int = 4096
     max_caption_chars: int = 1024
     max_video_bytes: int = 50 * 1024 * 1024
+    # Largest inbound voice note / audio file this platform will hand back.
+    max_download_bytes: int = 16 * 1024 * 1024
     # Interactive menu limits; overridden per platform.
     max_choices: int = 10
     max_choice_title_chars: int = 24
@@ -277,6 +299,21 @@ class MessagingClient(ABC):
         """
         return await self.send_message(
             to, render_choices_text(text, choices, header=header, footer=footer)
+        )
+
+    async def download_media(self, media_ref: str, *,
+                             max_bytes: Optional[int] = None) -> "DownloadedMedia":
+        """
+        Fetch inbound media (a voice note, an audio file) by platform handle.
+
+        Not every channel can do this, so the default is an explicit refusal
+        rather than a silent empty result - a caller that gets bytes knows they
+        are real bytes.
+        """
+        raise PermanentMessagingError(
+            f"{type(self).__name__} cannot download inbound media",
+            platform=self.platform,
+            suggestion="Voice input is not supported on this channel.",
         )
 
     async def mark_read(self, message_id: str) -> None:

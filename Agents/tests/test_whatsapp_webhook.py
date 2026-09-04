@@ -55,6 +55,7 @@ class RecordingDispatcher:
         self.button_taps = []
         self.registered = []
         self.unsupported = []
+        self.audio = []
         self.router = self
 
     async def mark_read(self, ref, message_id):
@@ -70,6 +71,11 @@ class RecordingDispatcher:
 
     async def handle_unsupported(self, ref, message_type):
         self.unsupported.append((ref, message_type))
+        return {"success": True}
+
+    async def handle_audio(self, ref, media_ref, profile=None, *, mime_type=None,
+                           duration_seconds=None, filename=None, message_type="voice"):
+        self.audio.append((ref, media_ref, mime_type, message_type))
         return {"success": True}
 
 
@@ -282,6 +288,40 @@ class TestPayloadParsing:
         }
         assert extract_messages(payload)[0]["from_button"] is False
 
+    def test_voice_note_carries_its_media_id(self):
+        """A voice note is fetched later by media id, so that id must survive parsing."""
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{
+                "from": "15551234567",
+                "id": "wamid.VOICE",
+                "type": "audio",
+                "audio": {"id": "MEDIA123", "mime_type": "audio/ogg; codecs=opus",
+                          "voice": True},
+            }]}}]}],
+        }
+        message = extract_messages(payload)[0]
+        assert message["media_id"] == "MEDIA123"
+        assert message["mime_type"] == "audio/ogg; codecs=opus"
+        assert message["type"] == "voice note"
+
+    def test_forwarded_audio_is_treated_as_speech_too(self):
+        payload = {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {"messages": [{
+                "from": "15551234567",
+                "id": "wamid.AUDIO",
+                "type": "audio",
+                "audio": {"id": "MEDIA456", "mime_type": "audio/mpeg", "voice": False},
+            }]}}]}],
+        }
+        message = extract_messages(payload)[0]
+        assert message["media_id"] == "MEDIA456"
+        assert message["type"] == "audio"
+
+    def test_text_messages_carry_no_media_id(self):
+        assert extract_messages(INBOUND_TEXT)[0]["media_id"] is None
+
     def test_empty_payload_yields_nothing(self):
         assert extract_messages({}) == []
         assert extract_statuses({}) == []
@@ -337,3 +377,52 @@ class TestHealthEndpoint:
 
     def test_api_health_alias_exists_for_deploy_smoke_tests(self, client):
         assert client.get("/api/health").status_code == 200
+
+
+class TestInboundVoiceNotes:
+    """A WhatsApp voice note must reach the transcription path, not the
+    "I can only read text" reply that used to catch it."""
+
+    def _voice_payload(self, media_id="MEDIA789"):
+        return {
+            "object": "whatsapp_business_account",
+            "entry": [{"changes": [{"value": {
+                "contacts": [{"profile": {"name": "Alice Smith"}, "wa_id": "15551234567"}],
+                "messages": [{
+                    "from": "15551234567",
+                    "id": "wamid.VOICE1",
+                    "type": "audio",
+                    "audio": {"id": media_id, "mime_type": "audio/ogg; codecs=opus",
+                              "voice": True},
+                }],
+            }}]}],
+        }
+
+    def test_voice_note_is_routed_to_handle_audio(self, client, dispatcher):
+        body = json.dumps(self._voice_payload()).encode()
+        response = client.post(
+            "/webhook/whatsapp", data=body,
+            headers={"X-Hub-Signature-256": sign(body), "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 200
+        assert len(dispatcher.audio) == 1
+        ref, media_ref, mime_type, message_type = dispatcher.audio[0]
+        assert ref.platform_user_id == "15551234567"
+        assert media_ref == "MEDIA789"
+        assert message_type == "voice note"
+        # It must not fall through to the unsupported-media reply.
+        assert dispatcher.unsupported == []
+        assert dispatcher.handled == []
+
+    def test_voice_note_opens_the_24h_window(self, client, dispatcher):
+        """An inbound voice note is still an inbound message for Meta's window."""
+        body = json.dumps(self._voice_payload()).encode()
+        client.post(
+            "/webhook/whatsapp", data=body,
+            headers={"X-Hub-Signature-256": sign(body), "Content-Type": "application/json"},
+        )
+
+        assert len(dispatcher.registered) == 1
+        _, profile = dispatcher.registered[0]
+        assert profile.first_name == "Alice"

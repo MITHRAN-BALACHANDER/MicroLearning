@@ -97,8 +97,23 @@ def extract_messages(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
                 message_type = message.get("type", "unknown")
                 text = ""
                 from_button = False
+                media_id = None
+                mime_type = None
+                duration_seconds = None
 
-                if message_type == "text":
+                if message_type in ("audio", "voice"):
+                    # Meta sends voice notes as type "audio" with voice=true,
+                    # and forwarded music/recordings as type "audio" with
+                    # voice=false. Both are speech as far as we care; the bytes
+                    # are fetched later, from the media id.
+                    audio = message.get("audio") or message.get("voice") or {}
+                    media_id = audio.get("id")
+                    mime_type = audio.get("mime_type")
+                    # Cloud API omits duration on inbound audio, so the length
+                    # guard happens on file size instead.
+                    message_type = "voice note" if audio.get("voice") else "audio"
+
+                elif message_type == "text":
                     text = (message.get("text") or {}).get("body", "")
                 elif message_type == "interactive":
                     interactive = message.get("interactive") or {}
@@ -122,6 +137,9 @@ def extract_messages(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
                     "type": message_type,
                     "text": text,
                     "from_button": from_button,
+                    "media_id": media_id,
+                    "mime_type": mime_type,
+                    "duration_seconds": duration_seconds,
                     "profile_name": names.get(sender),
                     "timestamp": message.get("timestamp"),
                 })
@@ -182,6 +200,16 @@ def create_app(dispatcher=None, worker=None, orchestrator=None) -> Flask:
                 body["agents"] = orchestrator.get_all_agents_status()
             except Exception as exc:  # noqa: BLE001
                 body["agents_error"] = str(exc)
+
+        # Which Whisper model is live, and on what device - the questions an
+        # operator asks when voice notes come back slow or wrong.
+        try:
+            from utils.transcription import get_transcriber
+
+            body["voice"] = get_transcriber().get_state()
+        except Exception as exc:  # noqa: BLE001
+            body["voice_error"] = str(exc)
+
         return jsonify(body), 200
 
     # Meta's CD smoke tests hit /api/health
@@ -269,6 +297,18 @@ async def _process(dispatcher, message: Dict[str, Any]) -> None:
     # Records the inbound timestamp that opens WhatsApp's 24h reply window
     dispatcher.register_inbound(ref, profile)
     await dispatcher.router.mark_read(ref, message.get("message_id"))
+
+    if message.get("media_id"):
+        logger.info(f"WhatsApp {message['type']} from {ref}")
+        await dispatcher.handle_audio(
+            ref,
+            message["media_id"],
+            profile,
+            mime_type=message.get("mime_type"),
+            duration_seconds=message.get("duration_seconds"),
+            message_type=message["type"],
+        )
+        return
 
     if message["type"] != "text" or not message["text"].strip():
         await dispatcher.handle_unsupported(ref, message["type"])

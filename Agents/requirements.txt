@@ -40,6 +40,11 @@ python-docx==1.1.0
 moviepy==1.0.3
 Pillow==10.1.0
 
+# Voice input - local speech-to-text
+# faster-whisper runs Whisper on CTranslate2 (int8 on CPU, float16 on GPU) and
+# decodes audio through PyAV, so no system ffmpeg install is needed.
+faster-whisper==1.2.1
+
 # Scheduling
 apscheduler==3.10.4
 

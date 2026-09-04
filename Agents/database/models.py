@@ -110,6 +110,10 @@ class Question(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     video_id = Column(Integer, ForeignKey("videos.id"), nullable=False)
+    # The situation the learner is put in, asked about by question_text.
+    # Nullable because questions written before scenarios existed have none,
+    # and they still need to be askable.
+    scenario = Column(Text, nullable=True)
     question_text = Column(Text, nullable=False)
     question_type = Column(String, default="open")  # open, multiple_choice
     correct_answer = Column(Text, nullable=True)

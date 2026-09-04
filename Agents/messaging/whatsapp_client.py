@@ -19,6 +19,7 @@ from loguru import logger
 
 from messaging.base import (
     Choice,
+    DownloadedMedia,
     MessagingClient,
     OutboundResult,
     PermanentMessagingError,
@@ -77,6 +78,7 @@ class WhatsAppClient(MessagingClient):
     max_text_chars = 4096      # WhatsApp text body limit
     max_caption_chars = 1024   # media caption limit
     max_video_bytes = 16 * 1024 * 1024  # Cloud API video cap
+    max_download_bytes = 16 * 1024 * 1024  # inbound audio cap
 
     # Interactive message limits, straight from the Cloud API reference. Meta
     # rejects the whole message if any of these is exceeded, so every field is
@@ -452,6 +454,106 @@ class WhatsAppClient(MessagingClient):
         logger.info(f"WhatsApp upload cached media id for {os.path.basename(file_path)}")
         return OutboundResult(success=True, platform=self.platform, media_ref=media_id)
 
+    # -- inbound ----------------------------------------------------------
+
+    async def download_media(self, media_ref: str, *,
+                             max_bytes: Optional[int] = None) -> DownloadedMedia:
+        """
+        Fetch an inbound voice note by media id.
+
+        Meta makes this two calls: GET /{media-id} returns a short-lived signed
+        URL plus the real mime type and size, then that URL is fetched. The
+        second request still needs the bearer token - Meta returns 401 without
+        it even though the URL is signed, which is the usual first surprise
+        here. The URL expires in minutes, so it is used immediately and never
+        cached.
+        """
+        if not media_ref:
+            raise PermanentMessagingError(
+                "No WhatsApp media id to download",
+                platform=self.platform,
+            )
+
+        limit = max_bytes or self.max_download_bytes
+        metadata = await self._get_json(f"{self.api_root}/{media_ref}")
+
+        download_url = metadata.get("url")
+        if not download_url:
+            raise PermanentMessagingError(
+                f"WhatsApp returned no download URL for media {media_ref}",
+                platform=self.platform,
+                suggestion="The media may have expired; Meta keeps inbound media for 30 days.",
+            )
+
+        size = int(metadata.get("file_size") or 0)
+        if size and size > limit:
+            raise PermanentMessagingError(
+                f"Audio is {size / 1024 / 1024:.1f} MB; the limit is "
+                f"{limit / 1024 / 1024:.0f} MB",
+                platform=self.platform,
+                suggestion="Ask the learner to send a shorter recording.",
+            )
+
+        try:
+            response = await self._http().get(
+                download_url,
+                headers={**self._auth_headers, "User-Agent": "MicroLearningBot/1.0"},
+                timeout=max(self.timeout, 60.0),
+            )
+        except httpx.TimeoutException as exc:
+            raise TransientMessagingError(
+                f"WhatsApp media download timed out: {exc}",
+                platform=self.platform,
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise TransientMessagingError(
+                f"WhatsApp media download network error: {exc}",
+                platform=self.platform,
+            ) from exc
+
+        if not response.is_success:
+            # The CDN answers with bytes or an HTTP status, not the Graph error
+            # envelope _parse_response expects.
+            raise PermanentMessagingError(
+                f"WhatsApp media download failed with HTTP {response.status_code}",
+                platform=self.platform,
+                suggestion="The signed media URL may have expired - retry the message.",
+            )
+
+        data = response.content
+        if len(data) > limit:
+            raise PermanentMessagingError(
+                f"Audio is {len(data) / 1024 / 1024:.1f} MB; the limit is "
+                f"{limit / 1024 / 1024:.0f} MB",
+                platform=self.platform,
+                suggestion="Ask the learner to send a shorter recording.",
+            )
+
+        mime_type = metadata.get("mime_type") or response.headers.get("Content-Type")
+        return DownloadedMedia(
+            data=data,
+            mime_type=mime_type,
+            filename=f"{media_ref}{_extension_for(mime_type)}",
+        )
+
+    async def _get_json(self, url: str) -> Dict[str, Any]:
+        """GET a Graph API endpoint, translating errors like _post_json does."""
+        try:
+            response = await self._http().get(url, headers=self._auth_headers)
+        except httpx.TimeoutException as exc:
+            raise TransientMessagingError(
+                f"WhatsApp request timed out: {exc}",
+                platform=self.platform,
+                suggestion="Retry; check network egress to graph.facebook.com.",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise TransientMessagingError(
+                f"WhatsApp network error: {exc}",
+                platform=self.platform,
+            ) from exc
+
+        return self._parse_response(response)
+
     async def mark_read(self, message_id: str) -> None:
         """Show the blue ticks so learners know the bot received their message."""
         if not message_id:
@@ -463,3 +565,25 @@ class WhatsAppClient(MessagingClient):
             )
         except Exception as exc:  # read receipts are cosmetic - never fail a turn
             logger.debug(f"Could not mark WhatsApp message read: {exc}")
+
+
+def _extension_for(mime_type: Optional[str]) -> str:
+    """
+    Filename extension for a WhatsApp audio mime type.
+
+    Only used for logs and as a decoder hint; mimetypes.guess_extension picks
+    ".oga" over ".ogg" for OGG and does not know the "; codecs=opus" suffix
+    WhatsApp appends, so the common cases are spelled out.
+    """
+    base = (mime_type or "").split(";")[0].strip().lower()
+    return {
+        "audio/ogg": ".ogg",
+        "audio/opus": ".opus",
+        "audio/mpeg": ".mp3",
+        "audio/mp4": ".m4a",
+        "audio/aac": ".aac",
+        "audio/amr": ".amr",
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "audio/webm": ".webm",
+    }.get(base, ".bin")

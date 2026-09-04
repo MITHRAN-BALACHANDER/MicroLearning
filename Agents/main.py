@@ -22,7 +22,9 @@ from config.settings import (
     LOG_LEVEL,
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_ENABLED,
+    VOICE_INPUT_ENABLED,
     WHATSAPP_ENABLED,
+    WHISPER_PRELOAD,
     ENABLED_PLATFORMS,
     WEBHOOK_HOST,
     WEBHOOK_PORT,
@@ -130,6 +132,40 @@ class MicroLearningBot:
             MessageHandler(filters.TEXT & ~filters.COMMAND, on_message)
         )
 
+        async def on_voice(update, context):
+            """
+            Handle a voice note, audio file, or round video note.
+
+            All three carry speech, and Telegram models them as three different
+            objects with the same useful fields, so one handler covers them.
+            Transcription and everything after it lives in the dispatcher, which
+            is what keeps WhatsApp voice notes behaving identically.
+            """
+            ref, profile = _telegram_identity(update)
+            self.dispatcher.register_inbound(ref, profile)
+
+            message = update.message
+            media = message.voice or message.audio or message.video_note
+            if media is None:
+                await self.dispatcher.handle_unsupported(ref, "audio")
+                return
+
+            await self.dispatcher.handle_audio(
+                ref,
+                media.file_id,
+                profile,
+                mime_type=getattr(media, "mime_type", None),
+                duration_seconds=getattr(media, "duration", None),
+                filename=getattr(media, "file_name", None),
+                message_type="voice note" if message.voice else "audio",
+            )
+
+        self.telegram_app.add_handler(
+            MessageHandler(
+                filters.VOICE | filters.AUDIO | filters.VIDEO_NOTE, on_voice
+            )
+        )
+
         async def on_menu_tap(update, context):
             """
             Handle an inline-keyboard tap.
@@ -231,6 +267,14 @@ class MicroLearningBot:
             started = time.time()
             self.orchestrator.warm_up()
             logger.info(f"Agents ready ({time.time() - started:.0f}s)")
+
+            # The Whisper weights are downloaded on first use, so without this
+            # the learner who sends the first voice note waits out the download
+            # as well as the transcription.
+            if VOICE_INPUT_ENABLED and WHISPER_PRELOAD:
+                from utils.transcription import get_transcriber
+
+                get_transcriber().warm_up()
 
         threading.Thread(target=warm, name="agent-warmup", daemon=True).start()
 

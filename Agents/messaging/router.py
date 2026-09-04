@@ -11,6 +11,7 @@ from loguru import logger
 
 from messaging.base import (
     Choice,
+    DownloadedMedia,
     MessagingClient,
     MessagingError,
     OutboundResult,
@@ -160,6 +161,19 @@ class MessagingRouter:
     async def upload_video(self, platform, file_path: str, *, staging_chat_id: Optional[str] = None) -> OutboundResult:
         client = self.client_for(platform)
         return await client.upload_video(file_path, staging_chat_id=staging_chat_id)
+
+    async def download_media(self, ref: UserRef, media_ref: str, *,
+                             max_bytes: Optional[int] = None) -> DownloadedMedia:
+        """
+        Fetch inbound media from the learner's platform.
+
+        Unlike the send helpers this raises rather than returning a result
+        object: there is nothing useful to do with a half-downloaded voice
+        note, and the dispatcher already has one place that turns a
+        MessagingError into learner-facing copy.
+        """
+        client = self.client_for(ref)
+        return await client.download_media(media_ref, max_bytes=max_bytes)
 
     async def mark_read(self, ref: UserRef, message_id: Optional[str]) -> None:
         if not message_id:

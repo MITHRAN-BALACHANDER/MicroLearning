@@ -20,6 +20,8 @@ _ADDITIVE_COLUMNS = [
     ("users", "platform_user_id", "VARCHAR",
      "UPDATE users SET platform_user_id = telegram_id WHERE platform_user_id IS NULL"),
     ("users", "last_inbound_at", "TIMESTAMP", None),
+    # Scenario-based quizzes: the situation shown above the question.
+    ("questions", "scenario", "TEXT", None),
 ]
 
 

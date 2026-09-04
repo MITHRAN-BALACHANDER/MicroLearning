@@ -46,6 +46,49 @@ class QuestionAgent:
     def has_active_quiz(self, ref: UserRef) -> bool:
         return ref.key in self.active_quizzes
     
+    # -- presentation -----------------------------------------------------
+    # One place builds a question and one builds feedback, so every question in
+    # a quiz looks the same and the two channels cannot drift.
+
+    @staticmethod
+    def _score_bar(rating: float) -> str:
+        """
+        A ten-block bar for the score.
+
+        A bare "7/10" makes a learner do arithmetic to know how they did. The
+        bar is read at a glance, which matters on a phone mid-shift.
+        """
+        filled = max(0, min(10, int(round(float(rating)))))
+        return "●" * filled + "○" * (10 - filled)
+
+    def _render_question(self, question: Dict[str, Any], index: int, total: int) -> str:
+        """
+        Render one question.
+
+        The scenario is separated from the question by a labelled break so the
+        learner can tell the situation from what is being asked of them - they
+        arrive as one wall of text otherwise. Questions written before
+        scenarios existed simply have no situation block.
+        """
+        parts = [bold(f"Question {index} of {total}")]
+
+        scenario = (question.get("scenario") or "").strip()
+        if scenario:
+            parts.append(italic("The situation"))
+            parts.append(sanitize(scenario))
+
+        parts.append(bold(sanitize(question["question"])))
+        parts.append(italic("Answer in a sentence or two - a voice note is fine."))
+        return paragraphs(*parts)
+
+    def _render_feedback(self, evaluation: Dict[str, Any]) -> str:
+        """Render the score and feedback for one answer."""
+        rating = evaluation.get("rating", 0)
+        return paragraphs(
+            bold(f"{rating}/10") + "  " + self._score_bar(rating),
+            sanitize(evaluation.get("feedback", "")),
+        )
+
     async def generate_questions_from_video(self, video_id: int, num_questions: int = 3) -> List[Dict[str, Any]]:
         """
         Generate conceptual questions from video content using AI
@@ -69,36 +112,60 @@ class QuestionAgent:
                     return [
                         {
                             "id": q.id,
+                            "scenario": q.scenario or "",
                             "question": q.question_text,
                             "concepts": json.loads(q.concepts_tested) if q.concepts_tested else []
                         }
                         for q in existing_questions
                     ]
                 
-                # Generate new questions using AI
+                # Generate new questions using AI.
+                #
+                # Scenario-based on purpose. "What are the three steps of the
+                # returns process?" tests whether someone watched a video;
+                # "A customer is at your counter with no receipt - what do you
+                # do?" tests whether they could actually do the job. The second
+                # is what the business cares about, and it is far harder to
+                # answer by parroting the transcript back.
                 prompt = f"""
-                Based on this video content, generate {num_questions} conceptual questions that test understanding:
-                
+                Write {num_questions} scenario-based questions from this lesson.
+
                 Title: {video.title}
                 Description: {video.description}
                 Transcript: {video.transcript or "No transcript available"}
                 Key Concepts: {video.concepts or "General concepts"}
-                
-                Generate questions that:
-                1. Test conceptual understanding, not memorization
-                2. Are open-ended and require explanation
-                3. Cover different aspects of the content
-                4. Are appropriate for the difficulty level
-                
+
+                Each one is a short, realistic situation the learner could
+                actually meet in their job, followed by a question about what
+                they would do.
+
+                Rules for the scenario:
+                - 1 to 3 sentences, under 60 words. It is read on a phone.
+                - Concrete and specific: a real moment, with a person in it.
+                  Give people and places ordinary names.
+                - It must be solvable using this lesson, and not solvable by
+                  common sense alone.
+                - Never state the answer inside the scenario.
+
+                Rules for the question:
+                - One sentence, asking what they would do or why.
+                - Answerable in two or three spoken sentences - learners often
+                  reply with a voice note.
+                - Open-ended. Never yes/no, never multiple choice.
+
+                Vary the situations across the {num_questions}: different
+                people, different pressures, different parts of the lesson.
+
                 Return as JSON array with format:
                 [
                     {{
-                        "question": "question text",
+                        "scenario": "the situation, 1-3 sentences",
+                        "question": "what would you do, and why?",
                         "concepts_tested": ["concept1", "concept2"],
                         "difficulty": 1-5
                     }}
                 ]
-                
+
                 IMPORTANT: Return ONLY valid JSON, no additional text.
                 """
                 
@@ -130,12 +197,14 @@ class QuestionAgent:
                 for q_data in questions_data[:num_questions]:
                     question = add_question(
                         video_id=video_id,
+                        scenario=q_data.get('scenario', '') or None,
                         question_text=q_data.get('question', ''),
                         concepts_tested=q_data.get('concepts_tested', []),
                         difficulty=q_data.get('difficulty', 1)
                     )
                     saved_questions.append({
                         "id": question.id,
+                        "scenario": question.scenario or "",
                         "question": question.question_text,
                         "concepts": json.loads(question.concepts_tested) if question.concepts_tested else []
                     })
@@ -198,14 +267,8 @@ class QuestionAgent:
             }
 
             # Send first question
-            first_question = questions[0]
             await self.router.send_message(
-                ref,
-                paragraphs(
-                    bold(f"Question 1 of {len(questions)}"),
-                    sanitize(first_question["question"]),
-                    italic("Reply with your answer."),
-                )
+                ref, self._render_question(questions[0], 1, len(questions))
             )
 
             return {
@@ -240,16 +303,30 @@ class QuestionAgent:
             current_q = quiz_state["questions"][quiz_state["current_index"]]
             
             # Evaluate using AI
+            # The scenario is part of the question: "I'd check the receipt
+            # first" can only be judged against the situation it answers.
+            scenario = (current_q.get("scenario") or "").strip()
+            scenario_block = f"Situation: {scenario}\n            " if scenario else ""
+
             eval_prompt = f"""
             Evaluate this answer to the question:
-            
-            Question: {current_q['question']}
+
+            {scenario_block}Question: {current_q['question']}
             Concepts being tested: {', '.join(current_q.get('concepts', []))}
             User's Answer: {answer}
-            
+
+            Judge whether they would handle the situation correctly, not
+            whether they used the same words as the lesson. A learner who
+            describes the right action in their own words is right. Mark down
+            only for a wrong or unsafe action, or a missing step that matters.
+
+            Write the feedback to the learner as "you", in at most three
+            sentences: what they got right, then the single most useful thing
+            they missed. No preamble, no restating the question.
+
             Provide:
             1. A rating from 0-10 (10 being perfect understanding)
-            2. Detailed feedback on what was correct/incorrect
+            2. Feedback as described above
             3. Whether the answer demonstrates understanding (true/false)
             
             Return as JSON:
@@ -306,18 +383,16 @@ class QuestionAgent:
             if quiz_state["current_index"] < len(quiz_state["questions"]):
                 # Send next question
                 next_q = quiz_state["questions"][quiz_state["current_index"]]
+                # Two messages, not one. Feedback on the last answer and the
+                # next scenario are different things to read; glued together
+                # the learner skims the feedback to reach the question.
+                await self.router.send_message(ref, self._render_feedback(evaluation))
                 await self.router.send_message(
                     ref,
-                    paragraphs(
-                        bold(f"Scored {evaluation['rating']}/10"),
-                        sanitize(evaluation["feedback"]),
-                        DIVIDER,
-                        bold(
-                            f"Question {quiz_state['current_index'] + 1} of "
-                            f"{len(quiz_state['questions'])}"
-                        ),
-                        sanitize(next_q["question"]),
-                        italic("Reply with your answer."),
+                    self._render_question(
+                        next_q,
+                        quiz_state["current_index"] + 1,
+                        len(quiz_state["questions"]),
                     ),
                 )
 
@@ -331,15 +406,14 @@ class QuestionAgent:
                 avg_rating = sum(a["evaluation"]["rating"] for a in quiz_state["answers"]) / len(quiz_state["answers"])
                 
                 answered = len(quiz_state["answers"])
+                await self.router.send_message(ref, self._render_feedback(evaluation))
                 await self.router.send_message(
                     ref,
                     paragraphs(
-                        bold(f"Scored {evaluation['rating']}/10"),
-                        sanitize(evaluation["feedback"]),
-                        DIVIDER,
                         bold("Quiz complete"),
-                        f"You averaged {bold(f'{avg_rating:.1f}/10')} "
-                        f"across {answered} question{'s' if answered != 1 else ''}.",
+                        f"{bold(f'{avg_rating:.1f}/10')}  {self._score_bar(avg_rating)}",
+                        f"Averaged across {answered} question"
+                        f"{'s' if answered != 1 else ''}.",
                     ),
                 )
 
