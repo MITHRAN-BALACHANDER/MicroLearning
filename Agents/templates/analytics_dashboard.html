@@ -4,36 +4,6 @@
 
 {% block extra_css %}
 <style>
-    /* shadcn-inspired black & white theme */
-    :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-    }
-    
-    * {
-        border-color: hsl(var(--border));
-    }
-    
-    body {
-        background-color: hsl(var(--background));
-        color: hsl(var(--foreground));
-    }
-    
     .widget {
         background: hsl(var(--card));
         border: 1px solid hsl(var(--border));
@@ -497,19 +467,19 @@
         <h3 class="text-lg font-semibold mb-4">System Health</h3>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="text-center">
-                <p class="text-sm text-neutral-600 mb-1">Database Records</p>
-                <p class="text-2xl font-bold text-neutral-900">{{ system_health.database.total_records }}</p>
+                <p class="text-sm text-muted-foreground mb-1">Database Records</p>
+                <p class="text-2xl font-bold text-foreground">{{ system_health.database.total_records }}</p>
                 <span class="stat-badge badge-success mt-2">{{ system_health.database.status }}</span>
             </div>
             <div class="text-center">
-                <p class="text-sm text-neutral-600 mb-1">Active Content</p>
-                <p class="text-2xl font-bold text-neutral-900">{{ system_health.content.active_percentage }}%</p>
-                <p class="text-xs text-neutral-600 mt-1">{{ system_health.content.active }} / {{ system_health.content.active + system_health.content.inactive }}</p>
+                <p class="text-sm text-muted-foreground mb-1">Active Content</p>
+                <p class="text-2xl font-bold text-foreground">{{ system_health.content.active_percentage }}%</p>
+                <p class="text-xs text-muted-foreground mt-1">{{ system_health.content.active }} / {{ system_health.content.active + system_health.content.inactive }}</p>
             </div>
             <div class="text-center">
-                <p class="text-sm text-neutral-600 mb-1">Active Sessions</p>
-                <p class="text-2xl font-bold text-neutral-900">{{ system_health.sessions.active }}</p>
-                <p class="text-xs text-neutral-600 mt-1">{{ system_health.sessions.total_today }} today</p>
+                <p class="text-sm text-muted-foreground mb-1">Active Sessions</p>
+                <p class="text-2xl font-bold text-foreground">{{ system_health.sessions.active }}</p>
+                <p class="text-xs text-muted-foreground mt-1">{{ system_health.sessions.total_today }} today</p>
             </div>
         </div>
     </div>

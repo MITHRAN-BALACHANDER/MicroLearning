@@ -281,7 +281,7 @@
                 <p><strong>Created:</strong> {{video.created_at.strftime('%Y-%m-%d')}}</p>
                 <p><strong>Questions:</strong> 
                     <a href="{{ url_for('video_questions', video_id=video.id) }}" 
-                       class="text-neutral-900 hover:underline font-medium">
+                       class="text-foreground hover:underline font-medium">
                         {{ video.questions|length if video.questions else 0 }}
                     </a>
                 </p>

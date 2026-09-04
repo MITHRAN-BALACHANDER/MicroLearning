@@ -1,0 +1,152 @@
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+    // Apply saved theme before first paint to avoid a flash of the wrong theme
+    (function () {
+        var saved = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+            document.documentElement.classList.add('dark');
+        }
+    })();
+
+    tailwind.config = {
+        darkMode: 'class',
+        theme: {
+            extend: {
+                fontFamily: {
+                    'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                },
+                borderRadius: {
+                    lg: 'var(--radius)',
+                    md: 'calc(var(--radius) - 2px)',
+                    sm: 'calc(var(--radius) - 4px)',
+                    xl: 'calc(var(--radius) + 4px)',
+                },
+                colors: {
+                    background: 'hsl(var(--background))',
+                    foreground: 'hsl(var(--foreground))',
+                    card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+                    popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
+                    primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+                    secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+                    muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+                    accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
+                    destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
+                    border: 'hsl(var(--border))',
+                    input: 'hsl(var(--input))',
+                    ring: 'hsl(var(--ring))',
+                    'chart-1': 'hsl(var(--chart-1))',
+                    'chart-2': 'hsl(var(--chart-2))',
+                    'chart-3': 'hsl(var(--chart-3))',
+                    'chart-4': 'hsl(var(--chart-4))',
+                    'chart-5': 'hsl(var(--chart-5))',
+                    sidebar: {
+                        DEFAULT: 'hsl(var(--sidebar))',
+                        foreground: 'hsl(var(--sidebar-foreground))',
+                        primary: 'hsl(var(--sidebar-primary))',
+                        'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
+                        accent: 'hsl(var(--sidebar-accent))',
+                        'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+                        border: 'hsl(var(--sidebar-border))',
+                        ring: 'hsl(var(--sidebar-ring))',
+                    },
+                },
+            }
+        }
+    }
+</script>
+<style>
+    /* MicroLearning brand theme (light + dark) — shared by base.html and login.html */
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 221 39% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 221 39% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 221 39% 11%;
+        --primary: 22 66% 55%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 180 18% 39%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 220 14% 96%;
+        --muted-foreground: 220 9% 46%;
+        --accent: 0 0% 93%;
+        --accent-foreground: 221 39% 11%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 220 13% 91%;
+        --input: 220 13% 91%;
+        --ring: 22 66% 55%;
+        --chart-1: 180 17% 45%;
+        --chart-2: 22 76% 62%;
+        --chart-3: 31 93% 79%;
+        --chart-4: 0 0% 53%;
+        --chart-5: 0 0% 60%;
+        --sidebar: 220 14% 96%;
+        --sidebar-foreground: 221 39% 11%;
+        --sidebar-primary: 22 66% 55%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 0 0% 100%;
+        --sidebar-accent-foreground: 221 39% 11%;
+        --sidebar-border: 220 13% 91%;
+        --sidebar-ring: 22 66% 55%;
+        --radius: 0.75rem;
+    }
+
+    .dark {
+        --background: 270 6% 7%;
+        --foreground: 0 0% 76%;
+        --card: 0 0% 7%;
+        --card-foreground: 0 0% 76%;
+        --popover: 270 6% 7%;
+        --popover-foreground: 0 0% 76%;
+        --primary: 22 76% 62%;
+        --primary-foreground: 270 6% 7%;
+        --secondary: 180 17% 45%;
+        --secondary-foreground: 270 6% 7%;
+        --muted: 0 0% 13%;
+        --muted-foreground: 0 0% 53%;
+        --accent: 0 0% 20%;
+        --accent-foreground: 0 0% 76%;
+        --destructive: 180 17% 45%;
+        --destructive-foreground: 270 6% 7%;
+        --border: 0 0% 13%;
+        --input: 0 0% 13%;
+        --ring: 22 76% 62%;
+        --chart-1: 180 17% 45%;
+        --chart-2: 22 76% 62%;
+        --chart-3: 31 93% 79%;
+        --chart-4: 0 0% 53%;
+        --chart-5: 0 0% 60%;
+        --sidebar: 0 0% 7%;
+        --sidebar-foreground: 0 0% 76%;
+        --sidebar-primary: 22 76% 62%;
+        --sidebar-primary-foreground: 270 6% 7%;
+        --sidebar-accent: 0 0% 20%;
+        --sidebar-accent-foreground: 0 0% 76%;
+        --sidebar-border: 0 0% 13%;
+        --sidebar-ring: 22 76% 62%;
+    }
+
+    * {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        border-color: hsl(var(--border));
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: hsl(var(--muted)); }
+    ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground)); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: hsl(var(--foreground)); }
+
+    body {
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .nav-link:hover { background: hsl(var(--sidebar-accent)); }
+    .theme-toggle:hover { background: hsl(var(--sidebar-accent)); }
+</style>
